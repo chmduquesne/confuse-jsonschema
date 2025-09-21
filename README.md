@@ -1,5 +1,8 @@
 # confuse-jsonschema
 
+[![codecov](https://codecov.io/gh/chmduquesne/confuse-jsonschema/branch/main/graph/badge.svg)](https://codecov.io/gh/chmduquesne/confuse-jsonschema)
+[![CI](https://github.com/chmduquesne/confuse-jsonschema/actions/workflows/ci.yml/badge.svg)](https://github.com/chmduquesne/confuse-jsonschema/actions/workflows/ci.yml)
+
 Convert JSON Schema to Confuse templates for seamless configuration validation.
 
 ## Overview
