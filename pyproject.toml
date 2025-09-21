@@ -8,11 +8,11 @@ version = "0.1.0"
 description = "Convert JSON Schema to Confuse templates"
 readme = "README.md"
 authors = [{name = "Christophe-Marie Duquesne", email = "chmd@chmd.fr"}]
-license = {text = "MIT"}
+license = "MIT"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
@@ -20,7 +20,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: System :: Configuration",
 ]
 keywords = ["json", "schema", "confuse", "configuration", "yaml"]
 requires-python = ">=3.8"
@@ -45,9 +44,12 @@ Homepage = "https://github.com/chmduquesne/confuse-jsonschema"
 Repository = "https://github.com/chmduquesne/confuse-jsonschema"
 Issues = "https://github.com/chmduquesne/confuse-jsonschema/issues"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["confuse_jsonschema*"]
+#  [tool.setuptools.packages.find]
+#  where = ["."]
+#  include = ["confuse_jsonschema*"]
+
+[tool.setuptools]
+py-modules = ["confuse_jsonschema", "templates"]
 
 [tool.black]
 line-length = 88
