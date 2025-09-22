@@ -38,3 +38,6 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+
+    - name: Build the package
+      run: python -m build
