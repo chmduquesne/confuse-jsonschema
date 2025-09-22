@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel", "setuptools-scm[simple]>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -47,9 +47,6 @@ Issues = "https://github.com/chmduquesne/confuse-jsonschema/issues"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["confuse_jsonschema*"]
-
-[tool.setuptools.dynamic]
-version = {attr = "confuse_jsonschema.__version__"}
 
 [tool.black]
 line-length = 88

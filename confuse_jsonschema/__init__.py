@@ -6,8 +6,15 @@ configuration templates.
 """
 
 from .to_template import to_template
+from importlib.metadata import distribution
 
-__version__ = "0.1.0"
+
+__version__ = ""
+try:
+    __version__ = distribution("confuse_jsonschema").version
+except importlib.metadata.PackageNotFoundError:
+    pass
+
 __author__ = "Christophe-Marie Duquesne"
 __email__ = "chmd@chmd.fr"
 
