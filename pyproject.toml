@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "confuse-jsonschema"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Convert JSON Schema to Confuse templates"
 readme = "README.md"
 authors = [{name = "Christophe-Marie Duquesne", email = "chmd@chmd.fr"}]
@@ -47,6 +47,9 @@ Issues = "https://github.com/chmduquesne/confuse-jsonschema/issues"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["confuse_jsonschema*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "confuse_jsonschema.__version__"}
 
 [tool.black]
 line-length = 88
