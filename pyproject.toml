@@ -4,7 +4,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "confuse-jsonschema"
-dynamic = ["version"]
 description = "Convert JSON Schema to Confuse templates"
 readme = "README.md"
 authors = [{name = "Christophe-Marie Duquesne", email = "chmd@chmd.fr"}]
@@ -27,6 +26,10 @@ dependencies = [
     "confuse>=1.7.0",
     "jsonschema>=4.0.0",
 ]
+# The version is inferred from the git tag by setuptools-scm. We follow
+# the recommended version scheme 'v1.0.0', see
+# https://setuptools-scm.readthedocs.io/en/latest/usage/#version-tag-formats
+dynamic = ["version"]
 
 [project.optional-dependencies]
 dev = [
