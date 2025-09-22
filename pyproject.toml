@@ -51,6 +51,10 @@ Issues = "https://github.com/chmduquesne/confuse-jsonschema/issues"
 where = ["."]
 include = ["confuse_jsonschema*"]
 
+[tool.setuptools_scm]
+# https://stackoverflow.com/a/79441867/628786
+local_scheme = "no-local-version"
+
 [tool.black]
 line-length = 88
 target-version = ['py38']
