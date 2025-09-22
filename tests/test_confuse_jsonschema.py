@@ -5,7 +5,7 @@ Tests for confuse_jsonschema module.
 import pytest
 import confuse
 from confuse_jsonschema import to_template
-from templates import (
+from confuse_jsonschema.templates import (
     SchemaString,
     SchemaInteger,
     SchemaNumber,

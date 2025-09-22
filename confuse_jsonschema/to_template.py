@@ -8,7 +8,7 @@ into Confuse configuration templates.
 import confuse
 import jsonschema
 from typing import Any, Dict, Union
-from templates import (
+from .templates import (
     SchemaString,
     SchemaInteger,
     SchemaNumber,

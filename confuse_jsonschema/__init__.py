@@ -5,7 +5,7 @@ A Python module for converting JSON Schema definitions into Confuse
 configuration templates.
 """
 
-from confuse_jsonschema import to_template
+from .to_template import to_template
 
 __version__ = "0.1.0"
 __author__ = "Christophe-Marie Duquesne"
