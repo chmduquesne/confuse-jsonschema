@@ -44,12 +44,9 @@ Homepage = "https://github.com/chmduquesne/confuse-jsonschema"
 Repository = "https://github.com/chmduquesne/confuse-jsonschema"
 Issues = "https://github.com/chmduquesne/confuse-jsonschema/issues"
 
-#  [tool.setuptools.packages.find]
-#  where = ["."]
-#  include = ["confuse_jsonschema*"]
-
-[tool.setuptools]
-py-modules = ["confuse_jsonschema", "templates"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["confuse_jsonschema*"]
 
 [tool.black]
 line-length = 88
