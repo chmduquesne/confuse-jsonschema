@@ -43,7 +43,7 @@ jobs:
   build:
     name: Create the package
     needs:
-      - build
+      - test
     runs-on: ubuntu-latest
 
     steps:
