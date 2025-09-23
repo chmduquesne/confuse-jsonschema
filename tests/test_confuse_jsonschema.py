@@ -2858,8 +2858,8 @@ class TestSchemaConsistency:
             "type": "object",
             "patternProperties": {
                 "^S_": {"type": "string"},
-                "^I_": {"type": "integer"}
-            }
+                "^I_": {"type": "integer"},
+            },
         }
 
         test_cases = [
@@ -2867,10 +2867,16 @@ class TestSchemaConsistency:
             ({}, True, "empty object"),
             ({"S_name": "hello"}, True, "string pattern match"),
             ({"I_count": 42}, True, "integer pattern match"),
-            ({"S_name": "hello", "I_count": 42}, True,
-             "multiple pattern matches"),
-            ({"other": "value"}, True,
-             "non-matching property allowed by default"),
+            (
+                {"S_name": "hello", "I_count": 42},
+                True,
+                "multiple pattern matches",
+            ),
+            (
+                {"other": "value"},
+                True,
+                "non-matching property allowed by default",
+            ),
             # Invalid cases
             ({"S_name": 42}, False, "wrong type for string pattern"),
             ({"I_count": "hello"}, False, "wrong type for integer pattern"),
@@ -2878,28 +2884,34 @@ class TestSchemaConsistency:
 
         self._test_consistency(schema, test_cases)
 
-    def test_pattern_properties_with_additional_properties_consistency(
-            self):
+    def test_pattern_properties_with_additional_properties_consistency(self):
         """Test patternProperties with additionalProperties: false."""
         schema = {
             "type": "object",
-            "patternProperties": {
-                "^config_": {"type": "string"}
-            },
-            "additionalProperties": False
+            "patternProperties": {"^config_": {"type": "string"}},
+            "additionalProperties": False,
         }
 
         test_cases = [
             # Valid cases
             ({}, True, "empty object"),
             ({"config_name": "test"}, True, "pattern match allowed"),
-            ({"config_value": "settings", "config_debug": "true"}, True,
-             "multiple patterns"),
+            (
+                {"config_value": "settings", "config_debug": "true"},
+                True,
+                "multiple patterns",
+            ),
             # Invalid cases
-            ({"other_prop": "value"}, False,
-             "non-pattern property not allowed"),
-            ({"config_name": "test", "invalid": "value"}, False,
-             "mix of valid and invalid"),
+            (
+                {"other_prop": "value"},
+                False,
+                "non-pattern property not allowed",
+            ),
+            (
+                {"config_name": "test", "invalid": "value"},
+                False,
+                "mix of valid and invalid",
+            ),
         ]
 
         self._test_consistency(schema, test_cases)
@@ -2910,24 +2922,94 @@ class TestSchemaConsistency:
             "type": "object",
             "properties": {
                 "name": {"type": "string"},
-                "version": {"type": "string"}
+                "version": {"type": "string"},
             },
-            "patternProperties": {
-                "^ext_": {"type": "integer"}
-            },
-            "additionalProperties": False
+            "patternProperties": {"^ext_": {"type": "integer"}},
+            "additionalProperties": False,
         }
 
         test_cases = [
             # Valid cases
             ({"name": "test"}, True, "properties schema match"),
             ({"ext_count": 5}, True, "pattern property match"),
-            ({"name": "test", "ext_size": 1024}, True,
-             "both properties and pattern"),
+            (
+                {"name": "test", "ext_size": 1024},
+                True,
+                "both properties and pattern",
+            ),
             # Invalid cases
             ({"other": "value"}, False, "additional property not allowed"),
-            ({"ext_count": "not_integer"}, False,
-             "pattern property wrong type"),
+            (
+                {"ext_count": "not_integer"},
+                False,
+                "pattern property wrong type",
+            ),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_contains_basic_consistency(self):
+        """Test basic contains validation consistency with JSON Schema."""
+        schema = {"type": "array", "contains": {"type": "number"}}
+
+        test_cases = [
+            # Valid cases
+            ([1, 2, 3], True, "all numbers"),
+            (["text", 42, "more"], True, "mixed with one number"),
+            ([42], True, "single number"),
+            # Invalid cases
+            (["only", "strings"], False, "no numbers"),
+            ([], False, "empty array"),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_contains_min_max_consistency(self):
+        """Test minContains/maxContains validation consistency."""
+        schema = {
+            "type": "array",
+            "contains": {"type": "string", "minLength": 3},
+            "minContains": 2,
+            "maxContains": 4,
+        }
+
+        test_cases = [
+            # Valid cases
+            (["hi", "hello", "world"], True, "2 matches (minimum)"),
+            (["ab", "hello", "world", "test"], True, "3 matches (middle)"),
+            (
+                ["ab", "hello", "world", "test", "long"],
+                True,
+                "4 matches (maximum)",
+            ),
+            # Invalid cases
+            (["hi", "hello"], False, "1 match (below minimum)"),
+            (
+                ["hello", "world", "test", "long", "extra"],
+                False,
+                "5 matches (above maximum)",
+            ),
+            (["hi", "ab"], False, "0 matches (no valid strings)"),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_contains_with_zero_min_consistency(self):
+        """Test contains with minContains: 0 consistency."""
+        schema = {
+            "type": "array",
+            "contains": {"type": "number", "minimum": 100},
+            "minContains": 0,
+            "maxContains": 2,
+        }
+
+        test_cases = [
+            # Valid cases
+            (["text"], True, "zero matches allowed"),
+            (["text", 150], True, "one match"),
+            ([50, 100, 200], True, "two matches (ignores 50)"),
+            # Invalid cases
+            ([100, 150, 200], False, "three matches (exceeds max)"),
         ]
 
         self._test_consistency(schema, test_cases)
@@ -4057,29 +4139,37 @@ class TestPatternProperties:
             "type": "object",
             "patternProperties": {
                 "^S_": {"type": "string"},
-                "^I_": {"type": "integer"}
-            }
+                "^I_": {"type": "integer"},
+            },
         }
         template = to_template(schema)
         assert isinstance(template, SchemaObject)
 
         # Should succeed with matching patterns
         config = confuse.Configuration("test")
-        config.set({"data": {
-            "S_name": "hello",
-            "S_title": "world",
-            "I_count": 42,
-            "I_index": 0
-        }})
+        config.set(
+            {
+                "data": {
+                    "S_name": "hello",
+                    "S_title": "world",
+                    "I_count": 42,
+                    "I_index": 0,
+                }
+            }
+        )
         result = config.get({"data": template})["data"]
         assert result["S_name"] == "hello"
         assert result["I_count"] == 42
 
         # Should fail with wrong type for pattern
-        config.set({"data": {
-            "S_name": "hello",
-            "I_count": "not an integer"  # Should be integer
-        }})
+        config.set(
+            {
+                "data": {
+                    "S_name": "hello",
+                    "I_count": "not an integer",  # Should be integer
+                }
+            }
+        )
         with pytest.raises(
             confuse.ConfigError, match="pattern property.*I_count"
         ):
@@ -4089,21 +4179,23 @@ class TestPatternProperties:
         """Test patternProperties with additionalProperties: true."""
         schema = {
             "type": "object",
-            "patternProperties": {
-                "^config_": {"type": "string"}
-            },
-            "additionalProperties": True
+            "patternProperties": {"^config_": {"type": "string"}},
+            "additionalProperties": True,
         }
         template = to_template(schema)
 
         # Should succeed with pattern matches and additional properties
         config = confuse.Configuration("test")
-        config.set({"data": {
-            "config_name": "test",
-            "config_value": "settings",
-            "other_prop": 42,  # Additional property allowed
-            "another": "value"
-        }})
+        config.set(
+            {
+                "data": {
+                    "config_name": "test",
+                    "config_value": "settings",
+                    "other_prop": 42,  # Additional property allowed
+                    "another": "value",
+                }
+            }
+        )
         result = config.get({"data": template})["data"]
         assert result["config_name"] == "test"
         assert result["other_prop"] == 42
@@ -4112,27 +4204,26 @@ class TestPatternProperties:
         """Test patternProperties with additionalProperties: false."""
         schema = {
             "type": "object",
-            "patternProperties": {
-                "^temp_": {"type": "number"}
-            },
-            "additionalProperties": False
+            "patternProperties": {"^temp_": {"type": "number"}},
+            "additionalProperties": False,
         }
         template = to_template(schema)
 
         # Should succeed with only pattern matches
         config = confuse.Configuration("test")
-        config.set({"data": {
-            "temp_cpu": 65.5,
-            "temp_gpu": 70.2
-        }})
+        config.set({"data": {"temp_cpu": 65.5, "temp_gpu": 70.2}})
         result = config.get({"data": template})["data"]
         assert result["temp_cpu"] == 65.5
 
         # Should fail with additional properties
-        config.set({"data": {
-            "temp_cpu": 65.5,
-            "invalid_prop": "not allowed"  # Doesnt match pattern
-        }})
+        config.set(
+            {
+                "data": {
+                    "temp_cpu": 65.5,
+                    "invalid_prop": "not allowed",  # Doesnt match pattern
+                }
+            }
+        )
         with pytest.raises(
             confuse.ConfigError, match="additional properties not allowed"
         ):
@@ -4144,32 +4235,31 @@ class TestPatternProperties:
             "type": "object",
             "properties": {
                 "name": {"type": "string"},
-                "version": {"type": "string"}
+                "version": {"type": "string"},
             },
-            "patternProperties": {
-                "^ext_": {"type": "integer"}
-            },
-            "additionalProperties": False
+            "patternProperties": {"^ext_": {"type": "integer"}},
+            "additionalProperties": False,
         }
         template = to_template(schema)
 
         # Should succeed with both properties and pattern properties
         config = confuse.Configuration("test")
-        config.set({"data": {
-            "name": "test-app",
-            "version": "1.0.0",
-            "ext_count": 5,
-            "ext_size": 1024
-        }})
+        config.set(
+            {
+                "data": {
+                    "name": "test-app",
+                    "version": "1.0.0",
+                    "ext_count": 5,
+                    "ext_size": 1024,
+                }
+            }
+        )
         result = config.get({"data": template})["data"]
         assert result["name"] == "test-app"
         assert result["ext_count"] == 5
 
         # Should fail with property not matching any schema
-        config.set({"data": {
-            "name": "test-app",
-            "invalid": "not allowed"
-        }})
+        config.set({"data": {"name": "test-app", "invalid": "not allowed"}})
         with pytest.raises(
             confuse.ConfigError, match="additional properties not allowed"
         ):
@@ -4177,20 +4267,13 @@ class TestPatternProperties:
 
     def test_pattern_properties_without_type_inference(self):
         """Test schema with only patternProperties infers object type."""
-        schema = {
-            "patternProperties": {
-                "^[0-9]+$": {"type": "string"}
-            }
-        }
+        schema = {"patternProperties": {"^[0-9]+$": {"type": "string"}}}
         template = to_template(schema)
         assert isinstance(template, SchemaObject)
 
         # Should work correctly
         config = confuse.Configuration("test")
-        config.set({"data": {
-            "123": "numeric key",
-            "456": "another numeric"
-        }})
+        config.set({"data": {"123": "numeric key", "456": "another numeric"}})
         result = config.get({"data": template})["data"]
         assert result["123"] == "numeric key"
 
@@ -4200,24 +4283,212 @@ class TestPatternProperties:
             "type": "object",
             "patternProperties": {
                 "^test_": {"type": "string"},
-                "test_.*": {"type": "integer"}  # Second pattern ignored
-            }
+                "test_.*": {"type": "integer"},  # Second pattern ignored
+            },
         }
         template = to_template(schema)
 
         # Should use first matching pattern (string)
         config = confuse.Configuration("test")
-        config.set({"data": {
-            "test_name": "hello"  # Matches first pattern, so should be string
-        }})
+        config.set({"data": {"test_name": "hello"}})  # Matches first pattern
         result = config.get({"data": template})["data"]
         assert result["test_name"] == "hello"
 
         # Should fail if value doesn't match first pattern
-        config.set({"data": {
-            "test_count": 42  # Matches first pattern but wrong type
-        }})
+        config.set(
+            {
+                "data": {
+                    "test_count": 42  # Matches first pattern but wrong type
+                }
+            }
+        )
         with pytest.raises(
             confuse.ConfigError, match="pattern property.*test_count"
+        ):
+            config.get({"data": template})
+
+
+class TestContainsValidation:
+    """Test contains, minContains, and maxContains validation features."""
+
+    def test_basic_contains(self):
+        """Test basic contains validation."""
+        schema = {"type": "array", "contains": {"type": "number"}}
+        template = to_template(schema)
+
+        # Valid cases - arrays containing at least one number
+        config = confuse.Configuration("test")
+        config.set({"data": ["text", 42, "more text"]})
+        result = config.get({"data": template})["data"]
+        assert result == ["text", 42, "more text"]
+
+        config.set({"data": [1, 2, 3]})
+        result = config.get({"data": template})["data"]
+        assert result == [1, 2, 3]
+
+        # Invalid case - no numbers
+        config.set({"data": ["only", "strings", "here"]})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must contain at least 1 items matching.*found 0",
+        ):
+            config.get({"data": template})
+
+    def test_min_contains(self):
+        """Test minContains constraint."""
+        schema = {
+            "type": "array",
+            "contains": {"type": "number"},
+            "minContains": 2,
+        }
+        template = to_template(schema)
+        config = confuse.Configuration("test")
+
+        # Valid case - has 2 or more numbers
+        config.set({"data": ["text", 1, "more", 2, "text"]})
+        result = config.get({"data": template})["data"]
+        assert result == ["text", 1, "more", 2, "text"]
+
+        # Invalid case - only 1 number
+        config.set({"data": ["text", 1, "text"]})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must contain at least 2 items matching.*found 1",
+        ):
+            config.get({"data": template})
+
+        # Invalid case - no numbers
+        config.set({"data": ["only", "text"]})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must contain at least 2 items matching.*found 0",
+        ):
+            config.get({"data": template})
+
+    def test_max_contains(self):
+        """Test maxContains constraint."""
+        schema = {
+            "type": "array",
+            "contains": {"type": "number"},
+            "maxContains": 2,
+        }
+        template = to_template(schema)
+        config = confuse.Configuration("test")
+
+        # Invalid case - zero matches (minContains defaults to 1)
+        config.set({"data": ["only", "text"]})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must contain at least 1 items matching.*found 0",
+        ):
+            config.get({"data": template})
+
+        config.set({"data": ["text", 1, "text"]})
+        result = config.get({"data": template})["data"]
+        assert result == ["text", 1, "text"]
+
+        config.set({"data": ["text", 1, "more", 2]})
+        result = config.get({"data": template})["data"]
+        assert result == ["text", 1, "more", 2]
+
+        # Invalid case - 3 numbers (exceeds max)
+        config.set({"data": [1, 2, 3, "text"]})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must contain at most 2 items matching.*found 3",
+        ):
+            config.get({"data": template})
+
+    def test_min_max_contains_combined(self):
+        """Test minContains and maxContains together."""
+        schema = {
+            "type": "array",
+            "contains": {"type": "string", "pattern": "^test_"},
+            "minContains": 1,
+            "maxContains": 3,
+        }
+        template = to_template(schema)
+        config = confuse.Configuration("test")
+
+        # Valid cases - 1, 2, or 3 matches
+        config.set({"data": ["test_one", 42, "other"]})
+        result = config.get({"data": template})["data"]
+        assert result == ["test_one", 42, "other"]
+
+        config.set({"data": ["test_one", "test_two", 42]})
+        result = config.get({"data": template})["data"]
+        assert result == ["test_one", "test_two", 42]
+
+        config.set({"data": ["test_one", "test_two", "test_three", 42]})
+        result = config.get({"data": template})["data"]
+        assert result == ["test_one", "test_two", "test_three", 42]
+
+        # Invalid case - no matches
+        config.set({"data": ["other", 42, "strings"]})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must contain at least 1 items matching.*found 0",
+        ):
+            config.get({"data": template})
+
+        # Invalid case - too many matches
+        config.set({"data": ["test_1", "test_2", "test_3", "test_4"]})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must contain at most 3 items matching.*found 4",
+        ):
+            config.get({"data": template})
+
+    def test_contains_with_prefix_items(self):
+        """Test contains validation with prefixItems (Array template)."""
+        schema = {
+            "type": "array",
+            "prefixItems": [{"type": "string"}, {"type": "integer"}],
+            "items": {"type": "number"},
+            "contains": {"type": "number", "minimum": 10},
+            "minContains": 1,
+        }
+        template = to_template(schema)
+        config = confuse.Configuration("test")
+
+        # Valid case - prefix items + additional items with contains match
+        config.set({"data": ["hello", 5, 15.5, 3.14]})
+        result = config.get({"data": template})["data"]
+        assert result == ["hello", 5, 15.5, 3.14]
+
+        # Invalid case - no numbers >= 10
+        config.set({"data": ["hello", 5, 3.14, 2.71]})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must contain at least 1 items matching.*found 0",
+        ):
+            config.get({"data": template})
+
+    def test_contains_zero_min_contains(self):
+        """Test contains with minContains: 0 (allows zero matches)."""
+        schema = {
+            "type": "array",
+            "contains": {"type": "number"},
+            "minContains": 0,
+            "maxContains": 2,
+        }
+        template = to_template(schema)
+        config = confuse.Configuration("test")
+
+        # Valid case - zero matches allowed
+        config.set({"data": ["only", "strings"]})
+        result = config.get({"data": template})["data"]
+        assert result == ["only", "strings"]
+
+        # Valid case - one match
+        config.set({"data": ["text", 42]})
+        result = config.get({"data": template})["data"]
+        assert result == ["text", 42]
+
+        # Invalid case - too many matches
+        config.set({"data": [1, 2, 3]})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must contain at most 2 items matching.*found 3",
         ):
             config.get({"data": template})

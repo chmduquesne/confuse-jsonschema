@@ -178,11 +178,56 @@ class SchemaSequence(confuse.Sequence):
         min_items: Optional[int] = None,
         max_items: Optional[int] = None,
         unique_items: bool = False,
+        contains_template=None,
+        min_contains: Optional[int] = None,
+        max_contains: Optional[int] = None,
     ):
         super().__init__(subtemplate)
         self.min_items = min_items
         self.max_items = max_items
         self.unique_items = unique_items
+        self.contains_template = contains_template
+        self.min_contains = min_contains
+        self.max_contains = max_contains
+
+    def _validate_contains(self, items, view):
+        """Validate contains constraints on array items."""
+        if self.contains_template is None:
+            return
+
+        # Count matching items
+        match_count = 0
+        template_obj = confuse.as_template(self.contains_template)
+
+        for i, item in enumerate(items):
+            try:
+                # Create a sub-view for this item
+                item_view = view[i] if hasattr(view, "__getitem__") else view
+                template_obj.convert(item, item_view)
+                match_count += 1
+            except confuse.ConfigError:
+                # Item doesn't match the contains schema, continue
+                continue
+
+        # JSON Schema spec: minContains defaults to 1 when omitted
+        effective_min_contains = (
+            1 if self.min_contains is None else self.min_contains
+        )
+
+        # Validate min/max contains constraints
+        if match_count < effective_min_contains:
+            self.fail(
+                f"must contain at least {effective_min_contains} items "
+                f"matching the contains schema, found {match_count}",
+                view,
+            )
+
+        if self.max_contains is not None and match_count > self.max_contains:
+            self.fail(
+                f"must contain at most {self.max_contains} items matching "
+                f"the contains schema, found {match_count}",
+                view,
+            )
 
     def value(self, view, template=None):
         # Get the list using parent logic
@@ -201,6 +246,9 @@ class SchemaSequence(confuse.Sequence):
                 if item in seen:
                     self.fail("all items must be unique", view)
                 seen.append(item)
+
+        # Validate contains constraints
+        self._validate_contains(out, view)
 
         return out
 
@@ -221,6 +269,9 @@ class SchemaSequence(confuse.Sequence):
                     self.fail("all items must be unique", view)
                 seen.append(item)
 
+        # Validate contains constraints
+        self._validate_contains(value, view)
+
         return value
 
 
@@ -234,6 +285,9 @@ class Array(confuse.Template):
         min_items: Optional[int] = None,
         max_items: Optional[int] = None,
         unique_items: bool = False,
+        contains_template=None,
+        min_contains: Optional[int] = None,
+        max_contains: Optional[int] = None,
         default=confuse.REQUIRED,
     ):
         super().__init__(default)
@@ -242,6 +296,48 @@ class Array(confuse.Template):
         self.min_items = min_items
         self.max_items = max_items
         self.unique_items = unique_items
+        self.contains_template = contains_template
+        self.min_contains = min_contains
+        self.max_contains = max_contains
+
+    def _validate_contains(self, items, view):
+        """Validate contains constraints on array items."""
+        if self.contains_template is None:
+            return
+
+        # Count matching items
+        match_count = 0
+        template_obj = confuse.as_template(self.contains_template)
+
+        for i, item in enumerate(items):
+            try:
+                # Create a sub-view for this item
+                item_view = view[i] if hasattr(view, "__getitem__") else view
+                template_obj.convert(item, item_view)
+                match_count += 1
+            except confuse.ConfigError:
+                # Item doesn't match the contains schema, continue
+                continue
+
+        # JSON Schema spec: minContains defaults to 1 when omitted
+        effective_min_contains = (
+            1 if self.min_contains is None else self.min_contains
+        )
+
+        # Validate min/max contains constraints
+        if match_count < effective_min_contains:
+            self.fail(
+                f"must contain at least {effective_min_contains} items "
+                f"matching the contains schema, found {match_count}",
+                view,
+            )
+
+        if self.max_contains is not None and match_count > self.max_contains:
+            self.fail(
+                f"must contain at most {self.max_contains} items matching "
+                f"the contains schema, found {match_count}",
+                view,
+            )
 
     def __repr__(self):
         args = []
@@ -315,6 +411,9 @@ class Array(confuse.Template):
                 if item in seen:
                     self.fail("all items must be unique", view)
                 seen.append(item)
+
+        # Validate contains constraints
+        self._validate_contains(result, view)
 
         return result
 
@@ -560,9 +659,10 @@ class SchemaObject(confuse.Template):
         unmatched_keys = set()
 
         if self.pattern_properties_templates:
-            (pattern_matched_keys,
-             unmatched_keys) = self._validate_pattern_properties(
-                additional_keys, value, view, result
+            (pattern_matched_keys, unmatched_keys) = (
+                self._validate_pattern_properties(
+                    additional_keys, value, view, result
+                )
             )
         else:
             unmatched_keys = additional_keys
@@ -642,9 +742,10 @@ class SchemaObject(confuse.Template):
             matched_any_pattern = False
 
             # Check each pattern property against this key
-            for pattern_str, template in (
-                self.pattern_properties_templates.items()
-            ):
+            for (
+                pattern_str,
+                template,
+            ) in self.pattern_properties_templates.items():
                 try:
                     if re.search(pattern_str, key):
                         matched_any_pattern = True
@@ -659,13 +760,14 @@ class SchemaObject(confuse.Template):
                         except confuse.ConfigError as e:
                             self.fail(
                                 f"pattern property '{key}' "
-                                f"(pattern '{pattern_str}'): {str(e)}", view
+                                f"(pattern '{pattern_str}'): {str(e)}",
+                                view,
                             )
                         break  # Stop after first pattern match
                 except re.error as e:
                     self.fail(
                         f"invalid regex pattern '{pattern_str}': {str(e)}",
-                        view
+                        view,
                     )
 
             if not matched_any_pattern:

@@ -98,6 +98,14 @@ validated_config = config.get(template)
   - Supports partial tuples (fewer items than prefixItems)
   - Works with `items` for additional items beyond prefix
   - Setting `items: false` disallows additional items
+- `contains` - content validation via `SchemaSequence` or `Array`
+  - Requires at least one array item to match the specified schema
+  - Default behavior: minimum 1 match required
+- `minContains` - minimum matches for `contains` schema
+  - When omitted, defaults to 1 (JSON Schema specification)
+  - Setting to 0 allows zero matches
+- `maxContains` - maximum matches for `contains` schema
+  - Combined with `minContains` for precise match count control
 
 #### Object Features
 - `properties` - property definitions

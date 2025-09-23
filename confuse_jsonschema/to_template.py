@@ -151,6 +151,9 @@ def to_template(
             "uniqueItems",
             "items",
             "prefixItems",
+            "contains",
+            "minContains",
+            "maxContains",
         ]
 
         if any(constraint in schema for constraint in string_constraints):
@@ -276,6 +279,14 @@ def _convert_array_schema(
     min_items = schema.get("minItems")
     max_items = schema.get("maxItems")
     unique_items = schema.get("uniqueItems", False)
+    contains_schema = schema.get("contains")
+    min_contains = schema.get("minContains")
+    max_contains = schema.get("maxContains")
+
+    # Convert contains schema to template if present
+    contains_template = None
+    if contains_schema is not None:
+        contains_template = to_template(contains_schema, resolver)
 
     # Check if this is a tuple schema (has prefixItems)
     if prefix_items is not None:
@@ -298,6 +309,9 @@ def _convert_array_schema(
             min_items,
             max_items,
             unique_items,
+            contains_template,
+            min_contains,
+            max_contains,
             schema.get("default", confuse.REQUIRED),
         )
 
@@ -309,9 +323,20 @@ def _convert_array_schema(
         item_template = to_template(items_schema, resolver)
 
     # Use SchemaSequence if we have constraints
-    if min_items is not None or max_items is not None or unique_items:
+    if (
+        min_items is not None
+        or max_items is not None
+        or unique_items
+        or contains_template is not None
+    ):
         return SchemaSequence(
-            item_template, min_items, max_items, unique_items
+            item_template,
+            min_items,
+            max_items,
+            unique_items,
+            contains_template,
+            min_contains,
+            max_contains,
         )
     else:
         return confuse.Sequence(item_template)
