@@ -3014,6 +3014,67 @@ class TestSchemaConsistency:
 
         self._test_consistency(schema, test_cases)
 
+    def test_min_properties_consistency(self):
+        """Test minProperties validation consistency with JSON Schema."""
+        schema = {"type": "object", "minProperties": 2}
+
+        test_cases = [
+            # Valid cases
+            ({"a": 1, "b": 2}, True, "exactly 2 properties"),
+            ({"a": 1, "b": 2, "c": 3}, True, "more than 2 properties"),
+            ({"x": "hello", "y": "world", "z": "test"}, True, "3 properties"),
+            # Invalid cases
+            ({}, False, "empty object"),
+            ({"a": 1}, False, "only 1 property"),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_max_properties_consistency(self):
+        """Test maxProperties validation consistency with JSON Schema."""
+        schema = {"type": "object", "maxProperties": 2}
+
+        test_cases = [
+            # Valid cases
+            ({}, True, "empty object"),
+            ({"a": 1}, True, "1 property"),
+            ({"a": 1, "b": 2}, True, "exactly 2 properties"),
+            # Invalid cases
+            ({"a": 1, "b": 2, "c": 3}, False, "3 properties"),
+            ({"w": 1, "x": 2, "y": 3, "z": 4}, False, "4 properties"),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_min_max_properties_combined_consistency(self):
+        """Test minProperties and maxProperties together consistency."""
+        schema = {"type": "object", "minProperties": 2, "maxProperties": 4}
+
+        test_cases = [
+            # Valid cases
+            ({"a": 1, "b": 2}, True, "exactly min (2 properties)"),
+            (
+                {"a": 1, "b": 2, "c": 3},
+                True,
+                "between min and max (3 properties)",
+            ),
+            (
+                {"a": 1, "b": 2, "c": 3, "d": 4},
+                True,
+                "exactly max (4 properties)",
+            ),
+            # Invalid cases
+            ({}, False, "empty object (below min)"),
+            ({"a": 1}, False, "1 property (below min)"),
+            (
+                {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5},
+                False,
+                "5 properties (above max)",
+            ),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
 
 class TestNotTemplate:
     """Test the Not template class directly."""
@@ -4490,5 +4551,183 @@ class TestContainsValidation:
         with pytest.raises(
             confuse.ConfigError,
             match="must contain at most 2 items matching.*found 3",
+        ):
+            config.get({"data": template})
+
+
+class TestMinMaxProperties:
+    """Test minProperties and maxProperties validation features."""
+
+    def test_min_properties(self):
+        """Test minProperties constraint."""
+        schema = {"type": "object", "minProperties": 2}
+        template = to_template(schema)
+        config = confuse.Configuration("test")
+
+        # Valid cases - 2 or more properties
+        config.set({"data": {"a": 1, "b": 2}})
+        result = config.get({"data": template})["data"]
+        assert result == {"a": 1, "b": 2}
+
+        config.set({"data": {"a": 1, "b": 2, "c": 3}})
+        result = config.get({"data": template})["data"]
+        assert result == {"a": 1, "b": 2, "c": 3}
+
+        # Invalid cases - fewer than 2 properties
+        config.set({"data": {}})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must have at least 2 properties, found 0",
+        ):
+            config.get({"data": template})
+
+        config.set({"data": {"a": 1}})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must have at least 2 properties, found 1",
+        ):
+            config.get({"data": template})
+
+    def test_max_properties(self):
+        """Test maxProperties constraint."""
+        schema = {"type": "object", "maxProperties": 2}
+        template = to_template(schema)
+        config = confuse.Configuration("test")
+
+        # Valid cases - 2 or fewer properties
+        config.set({"data": {}})
+        result = config.get({"data": template})["data"]
+        assert result == {}
+
+        config.set({"data": {"a": 1}})
+        result = config.get({"data": template})["data"]
+        assert result == {"a": 1}
+
+        config.set({"data": {"a": 1, "b": 2}})
+        result = config.get({"data": template})["data"]
+        assert result == {"a": 1, "b": 2}
+
+        # Invalid case - more than 2 properties
+        config.set({"data": {"a": 1, "b": 2, "c": 3}})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must have at most 2 properties, found 3",
+        ):
+            config.get({"data": template})
+
+    def test_min_max_properties_combined(self):
+        """Test minProperties and maxProperties together."""
+        schema = {"type": "object", "minProperties": 2, "maxProperties": 4}
+        template = to_template(schema)
+        config = confuse.Configuration("test")
+
+        # Valid cases - 2, 3, or 4 properties
+        config.set({"data": {"a": 1, "b": 2}})
+        result = config.get({"data": template})["data"]
+        assert result == {"a": 1, "b": 2}
+
+        config.set({"data": {"a": 1, "b": 2, "c": 3}})
+        result = config.get({"data": template})["data"]
+        assert result == {"a": 1, "b": 2, "c": 3}
+
+        config.set({"data": {"a": 1, "b": 2, "c": 3, "d": 4}})
+        result = config.get({"data": template})["data"]
+        assert result == {"a": 1, "b": 2, "c": 3, "d": 4}
+
+        # Invalid cases - outside range
+        config.set({"data": {"a": 1}})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must have at least 2 properties, found 1",
+        ):
+            config.get({"data": template})
+
+        config.set({"data": {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must have at most 4 properties, found 5",
+        ):
+            config.get({"data": template})
+
+    def test_min_max_properties_with_other_constraints(self):
+        """Test minProperties/maxProperties with other object constraints."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+            },
+            "required": ["name"],
+            "additionalProperties": False,
+            "minProperties": 1,
+            "maxProperties": 2,
+        }
+        template = to_template(schema)
+        config = confuse.Configuration("test")
+
+        # Valid cases
+        config.set({"data": {"name": "John"}})
+        result = config.get({"data": template})["data"]
+        assert result == {"name": "John"}
+
+        config.set({"data": {"name": "John", "age": 30}})
+        result = config.get({"data": template})["data"]
+        assert result == {"name": "John", "age": 30}
+
+        # Invalid - no properties (violates minProperties)
+        config.set({"data": {}})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must have at least 1 properties, found 0",
+        ):
+            config.get({"data": template})
+
+        # Invalid - too many properties (violates maxProperties first)
+        config.set({"data": {"name": "John", "age": 30, "city": "NYC"}})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must have at most 2 properties, found 3",
+        ):
+            config.get({"data": template})
+
+    def test_min_max_properties_zero(self):
+        """Test edge case with minProperties: 0."""
+        schema = {"type": "object", "minProperties": 0, "maxProperties": 1}
+        template = to_template(schema)
+        config = confuse.Configuration("test")
+
+        # Valid cases
+        config.set({"data": {}})
+        result = config.get({"data": template})["data"]
+        assert result == {}
+
+        config.set({"data": {"a": 1}})
+        result = config.get({"data": template})["data"]
+        assert result == {"a": 1}
+
+        # Invalid case - exceeds max
+        config.set({"data": {"a": 1, "b": 2}})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must have at most 1 properties, found 2",
+        ):
+            config.get({"data": template})
+
+    def test_properties_constraints_without_type(self):
+        """Test minProperties/maxProperties without explicit type."""
+        schema = {"minProperties": 1, "maxProperties": 3}
+        template = to_template(schema)
+        config = confuse.Configuration("test")
+
+        # Should infer object type from property constraints
+        config.set({"data": {"a": 1, "b": 2}})
+        result = config.get({"data": template})["data"]
+        assert result == {"a": 1, "b": 2}
+
+        # Invalid - too few properties
+        config.set({"data": {}})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="must have at least 1 properties, found 0",
         ):
             config.get({"data": template})

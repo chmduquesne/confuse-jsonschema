@@ -125,6 +125,12 @@ validated_config = config.get(template)
   - Validates property values based on regex pattern matching of property names
   - Works with `properties` and `additionalProperties`
   - First matching pattern wins if multiple patterns match
+- `minProperties` - minimum property count validation via `SchemaObject`
+  - Enforces minimum number of properties an object must have
+  - Must be a non-negative integer
+- `maxProperties` - maximum property count validation via `SchemaObject`
+  - Enforces maximum number of properties an object can have
+  - Must be a non-negative integer
 - `default` - default values
 
 #### Logical Operators

@@ -602,6 +602,8 @@ class SchemaObject(confuse.Template):
         dependent_templates=None,
         property_names_template=None,
         pattern_properties_templates=None,
+        min_properties=None,
+        max_properties=None,
         resolver=None,
         default=confuse.REQUIRED,
     ):
@@ -612,6 +614,8 @@ class SchemaObject(confuse.Template):
         self.dependent_templates = dependent_templates or {}  # Pre-compiled
         self.property_names_template = property_names_template
         self.pattern_properties_templates = pattern_properties_templates or {}
+        self.min_properties = min_properties
+        self.max_properties = max_properties
         self.resolver = resolver
 
     def __repr__(self):
@@ -630,6 +634,27 @@ class SchemaObject(confuse.Template):
         """Validate object with additionalProperties constraints."""
         if not isinstance(value, dict):
             self.fail("must be an object", view)
+
+        # Validate property count constraints
+        property_count = len(value)
+        if (
+            self.min_properties is not None
+            and property_count < self.min_properties
+        ):
+            self.fail(
+                f"must have at least {self.min_properties} properties, "
+                f"found {property_count}",
+                view,
+            )
+        if (
+            self.max_properties is not None
+            and property_count > self.max_properties
+        ):
+            self.fail(
+                f"must have at most {self.max_properties} properties, "
+                f"found {property_count}",
+                view,
+            )
 
         # Validate property names if schema is provided
         if self.property_names_template is not None:
