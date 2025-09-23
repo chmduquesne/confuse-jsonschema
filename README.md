@@ -113,6 +113,10 @@ validated_config = config.get(template)
 - `propertyNames` - property name validation via `SchemaObject`
   - Validates all object property names against a schema
   - Supports all string constraints: pattern, format, length, enum
+- `patternProperties` - pattern-based property validation via `SchemaObject`
+  - Validates property values based on regex pattern matching of property names
+  - Works with `properties` and `additionalProperties`
+  - First matching pattern wins if multiple patterns match
 - `default` - default values
 
 #### Logical Operators
@@ -133,13 +137,6 @@ validated_config = config.get(template)
   - Applies `then` branch when condition matches
   - Applies `else` branch when condition doesn't match
   - Follows JSON Schema semantics exactly
-
-### Partially Supported
-
-#### Object Constraints
-- `patternProperties` - recognized but not enforced
-  - **Limitation**: Confuse doesn't support dynamic property validation based on key patterns
-  - **Impact**: Pattern-based property validation is ignored
 
 ### Not Supported
 

@@ -502,6 +502,7 @@ class SchemaObject(confuse.Template):
         dependent_required=None,
         dependent_templates=None,
         property_names_template=None,
+        pattern_properties_templates=None,
         resolver=None,
         default=confuse.REQUIRED,
     ):
@@ -511,6 +512,7 @@ class SchemaObject(confuse.Template):
         self.dependent_required = dependent_required or {}
         self.dependent_templates = dependent_templates or {}  # Pre-compiled
         self.property_names_template = property_names_template
+        self.pattern_properties_templates = pattern_properties_templates or {}
         self.resolver = resolver
 
     def __repr__(self):
@@ -548,32 +550,45 @@ class SchemaObject(confuse.Template):
                 # Required property is missing
                 self.fail(f"missing required property '{key}'", view)
 
-        # Handle additional properties
+        # Handle additional properties (those not in properties schema)
         additional_keys = set(value.keys()) - set(
             self.properties_template.keys()
         )
 
-        if self.additional_properties is False and additional_keys:
-            additional_list = sorted(list(additional_keys))
+        # Validate pattern properties and classify remaining keys
+        pattern_matched_keys = set()
+        unmatched_keys = set()
+
+        if self.pattern_properties_templates:
+            (pattern_matched_keys,
+             unmatched_keys) = self._validate_pattern_properties(
+                additional_keys, value, view, result
+            )
+        else:
+            unmatched_keys = additional_keys
+
+        # Handle truly additional properties (not matched by patterns)
+        if self.additional_properties is False and unmatched_keys:
+            additional_list = sorted(list(unmatched_keys))
             self.fail(
                 f"additional properties not allowed: {additional_list}", view
             )
         elif isinstance(self.additional_properties, dict):
-            # Validate additional properties against schema
+            # Validate unmatched additional properties against schema
             from .to_template import to_template
 
             additional_template = to_template(
                 self.additional_properties, self.resolver
             )
-            for key in additional_keys:
+            for key in unmatched_keys:
                 try:
                     template_obj = confuse.as_template(additional_template)
                     result[key] = template_obj.convert(value[key], view[key])
                 except confuse.ConfigError as e:
                     self.fail(f"additional property '{key}': {str(e)}", view)
         elif self.additional_properties is True:
-            # Allow additional properties as-is
-            for key in additional_keys:
+            # Allow unmatched additional properties as-is
+            for key in unmatched_keys:
                 result[key] = value[key]
 
         # Validate property dependencies
@@ -615,6 +630,48 @@ class SchemaObject(confuse.Template):
                     f"property name '{property_name}' is invalid: {str(e)}",
                     view,
                 )
+
+    def _validate_pattern_properties(self, keys_to_check, value, view, result):
+        """Validate properties against patternProperties schemas."""
+        import re
+
+        pattern_matched_keys = set()
+        unmatched_keys = set()
+
+        for key in keys_to_check:
+            matched_any_pattern = False
+
+            # Check each pattern property against this key
+            for pattern_str, template in (
+                self.pattern_properties_templates.items()
+            ):
+                try:
+                    if re.search(pattern_str, key):
+                        matched_any_pattern = True
+                        pattern_matched_keys.add(key)
+
+                        # Validate the property value against pattern template
+                        try:
+                            template_obj = confuse.as_template(template)
+                            result[key] = template_obj.convert(
+                                value[key], view[key]
+                            )
+                        except confuse.ConfigError as e:
+                            self.fail(
+                                f"pattern property '{key}' "
+                                f"(pattern '{pattern_str}'): {str(e)}", view
+                            )
+                        break  # Stop after first pattern match
+                except re.error as e:
+                    self.fail(
+                        f"invalid regex pattern '{pattern_str}': {str(e)}",
+                        view
+                    )
+
+            if not matched_any_pattern:
+                unmatched_keys.add(key)
+
+        return pattern_matched_keys, unmatched_keys
 
     def _validate_dependent_schemas(self, value, view, result):
         """Validate dependentSchemas constraints."""

@@ -131,6 +131,7 @@ def to_template(
         or "dependentRequired" in schema
         or "dependentSchemas" in schema
         or "propertyNames" in schema
+        or "patternProperties" in schema
     ):
         # Handle objects without explicit type (object-related constraints)
         type_template = _convert_object_schema(schema, resolver)
@@ -216,8 +217,13 @@ def _convert_object_schema(
     if property_names is not None:
         property_names_template = to_template(property_names, resolver)
 
-    # TODO: Handle patternProperties
-    # pattern_properties = schema.get("patternProperties", {})
+    # Pre-compile patternProperties templates if provided
+    pattern_properties = schema.get("patternProperties", {})
+    pattern_properties_templates = {}
+    for pattern_str, pattern_schema in pattern_properties.items():
+        pattern_properties_templates[pattern_str] = to_template(
+            pattern_schema, resolver
+        )
 
     template = {}
 
@@ -245,6 +251,7 @@ def _convert_object_schema(
         or dependent_required
         or dependent_templates
         or property_names_template is not None
+        or pattern_properties_templates
     ):
         return SchemaObject(
             template,
@@ -252,6 +259,7 @@ def _convert_object_schema(
             dependent_required,
             dependent_templates,
             property_names_template,
+            pattern_properties_templates,
             resolver,
             schema.get("default", confuse.REQUIRED),
         )

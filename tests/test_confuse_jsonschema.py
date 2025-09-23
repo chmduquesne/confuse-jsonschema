@@ -2852,6 +2852,86 @@ class TestSchemaConsistency:
 
         self._test_consistency(schema, test_cases)
 
+    def test_pattern_properties_consistency(self):
+        """Test patternProperties validation consistency."""
+        schema = {
+            "type": "object",
+            "patternProperties": {
+                "^S_": {"type": "string"},
+                "^I_": {"type": "integer"}
+            }
+        }
+
+        test_cases = [
+            # Valid cases
+            ({}, True, "empty object"),
+            ({"S_name": "hello"}, True, "string pattern match"),
+            ({"I_count": 42}, True, "integer pattern match"),
+            ({"S_name": "hello", "I_count": 42}, True,
+             "multiple pattern matches"),
+            ({"other": "value"}, True,
+             "non-matching property allowed by default"),
+            # Invalid cases
+            ({"S_name": 42}, False, "wrong type for string pattern"),
+            ({"I_count": "hello"}, False, "wrong type for integer pattern"),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_pattern_properties_with_additional_properties_consistency(
+            self):
+        """Test patternProperties with additionalProperties: false."""
+        schema = {
+            "type": "object",
+            "patternProperties": {
+                "^config_": {"type": "string"}
+            },
+            "additionalProperties": False
+        }
+
+        test_cases = [
+            # Valid cases
+            ({}, True, "empty object"),
+            ({"config_name": "test"}, True, "pattern match allowed"),
+            ({"config_value": "settings", "config_debug": "true"}, True,
+             "multiple patterns"),
+            # Invalid cases
+            ({"other_prop": "value"}, False,
+             "non-pattern property not allowed"),
+            ({"config_name": "test", "invalid": "value"}, False,
+             "mix of valid and invalid"),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_pattern_properties_with_properties_consistency(self):
+        """Test patternProperties combined with properties consistency."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "version": {"type": "string"}
+            },
+            "patternProperties": {
+                "^ext_": {"type": "integer"}
+            },
+            "additionalProperties": False
+        }
+
+        test_cases = [
+            # Valid cases
+            ({"name": "test"}, True, "properties schema match"),
+            ({"ext_count": 5}, True, "pattern property match"),
+            ({"name": "test", "ext_size": 1024}, True,
+             "both properties and pattern"),
+            # Invalid cases
+            ({"other": "value"}, False, "additional property not allowed"),
+            ({"ext_count": "not_integer"}, False,
+             "pattern property wrong type"),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
 
 class TestNotTemplate:
     """Test the Not template class directly."""
@@ -3966,3 +4046,178 @@ class TestArrayValidation:
         config.set({"data": ["hello", 42]})
         result = config.get({"data": template})["data"]
         assert result == ["hello", 42]
+
+
+class TestPatternProperties:
+    """Test patternProperties validation feature."""
+
+    def test_basic_pattern_properties(self):
+        """Test basic patternProperties validation."""
+        schema = {
+            "type": "object",
+            "patternProperties": {
+                "^S_": {"type": "string"},
+                "^I_": {"type": "integer"}
+            }
+        }
+        template = to_template(schema)
+        assert isinstance(template, SchemaObject)
+
+        # Should succeed with matching patterns
+        config = confuse.Configuration("test")
+        config.set({"data": {
+            "S_name": "hello",
+            "S_title": "world",
+            "I_count": 42,
+            "I_index": 0
+        }})
+        result = config.get({"data": template})["data"]
+        assert result["S_name"] == "hello"
+        assert result["I_count"] == 42
+
+        # Should fail with wrong type for pattern
+        config.set({"data": {
+            "S_name": "hello",
+            "I_count": "not an integer"  # Should be integer
+        }})
+        with pytest.raises(
+            confuse.ConfigError, match="pattern property.*I_count"
+        ):
+            config.get({"data": template})
+
+    def test_pattern_properties_with_additional_properties_true(self):
+        """Test patternProperties with additionalProperties: true."""
+        schema = {
+            "type": "object",
+            "patternProperties": {
+                "^config_": {"type": "string"}
+            },
+            "additionalProperties": True
+        }
+        template = to_template(schema)
+
+        # Should succeed with pattern matches and additional properties
+        config = confuse.Configuration("test")
+        config.set({"data": {
+            "config_name": "test",
+            "config_value": "settings",
+            "other_prop": 42,  # Additional property allowed
+            "another": "value"
+        }})
+        result = config.get({"data": template})["data"]
+        assert result["config_name"] == "test"
+        assert result["other_prop"] == 42
+
+    def test_pattern_properties_with_additional_properties_false(self):
+        """Test patternProperties with additionalProperties: false."""
+        schema = {
+            "type": "object",
+            "patternProperties": {
+                "^temp_": {"type": "number"}
+            },
+            "additionalProperties": False
+        }
+        template = to_template(schema)
+
+        # Should succeed with only pattern matches
+        config = confuse.Configuration("test")
+        config.set({"data": {
+            "temp_cpu": 65.5,
+            "temp_gpu": 70.2
+        }})
+        result = config.get({"data": template})["data"]
+        assert result["temp_cpu"] == 65.5
+
+        # Should fail with additional properties
+        config.set({"data": {
+            "temp_cpu": 65.5,
+            "invalid_prop": "not allowed"  # Doesnt match pattern
+        }})
+        with pytest.raises(
+            confuse.ConfigError, match="additional properties not allowed"
+        ):
+            config.get({"data": template})
+
+    def test_pattern_properties_with_properties_schema(self):
+        """Test patternProperties combined with properties schema."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "version": {"type": "string"}
+            },
+            "patternProperties": {
+                "^ext_": {"type": "integer"}
+            },
+            "additionalProperties": False
+        }
+        template = to_template(schema)
+
+        # Should succeed with both properties and pattern properties
+        config = confuse.Configuration("test")
+        config.set({"data": {
+            "name": "test-app",
+            "version": "1.0.0",
+            "ext_count": 5,
+            "ext_size": 1024
+        }})
+        result = config.get({"data": template})["data"]
+        assert result["name"] == "test-app"
+        assert result["ext_count"] == 5
+
+        # Should fail with property not matching any schema
+        config.set({"data": {
+            "name": "test-app",
+            "invalid": "not allowed"
+        }})
+        with pytest.raises(
+            confuse.ConfigError, match="additional properties not allowed"
+        ):
+            config.get({"data": template})
+
+    def test_pattern_properties_without_type_inference(self):
+        """Test schema with only patternProperties infers object type."""
+        schema = {
+            "patternProperties": {
+                "^[0-9]+$": {"type": "string"}
+            }
+        }
+        template = to_template(schema)
+        assert isinstance(template, SchemaObject)
+
+        # Should work correctly
+        config = confuse.Configuration("test")
+        config.set({"data": {
+            "123": "numeric key",
+            "456": "another numeric"
+        }})
+        result = config.get({"data": template})["data"]
+        assert result["123"] == "numeric key"
+
+    def test_multiple_pattern_matches(self):
+        """Test behavior when multiple patterns match (first wins)."""
+        schema = {
+            "type": "object",
+            "patternProperties": {
+                "^test_": {"type": "string"},
+                "test_.*": {"type": "integer"}  # Second pattern ignored
+            }
+        }
+        template = to_template(schema)
+
+        # Should use first matching pattern (string)
+        config = confuse.Configuration("test")
+        config.set({"data": {
+            "test_name": "hello"  # Matches first pattern, so should be string
+        }})
+        result = config.get({"data": template})["data"]
+        assert result["test_name"] == "hello"
+
+        # Should fail if value doesn't match first pattern
+        config.set({"data": {
+            "test_count": 42  # Matches first pattern but wrong type
+        }})
+        with pytest.raises(
+            confuse.ConfigError, match="pattern property.*test_count"
+        ):
+            config.get({"data": template})
