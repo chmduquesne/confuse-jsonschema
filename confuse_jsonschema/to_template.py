@@ -17,6 +17,8 @@ from .templates import (
     Composite,
     Not,
     SchemaOneOf,
+    SchemaObject,
+    Conditional,
 )
 from .resolver import SchemaResolver
 
@@ -177,13 +179,12 @@ def to_template(
 
 def _convert_object_schema(
     schema: Dict[str, Any], resolver: SchemaResolver
-) -> Dict[str, Any]:
+) -> Union[Dict[str, Any], SchemaObject]:
     """Convert an object schema to a Confuse template dictionary."""
     properties = schema.get("properties", {})
     required_fields = schema.get("required", [])
-
-    # TODO: Handle additionalProperties and patternProperties
-    # additional_properties = schema.get("additionalProperties", True)
+    additional_properties = schema.get("additionalProperties", True)
+    # TODO: Handle patternProperties
     # pattern_properties = schema.get("patternProperties", {})
 
     template = {}
@@ -199,6 +200,15 @@ def _convert_object_schema(
             template[prop_name] = confuse.Optional(prop_template)
         else:
             template[prop_name] = prop_template
+
+    # If additionalProperties has constraints, use SchemaObject
+    if additional_properties is not True:
+        return SchemaObject(
+            template,
+            additional_properties,
+            resolver,
+            schema.get("default", confuse.REQUIRED)
+        )
 
     return template
 
@@ -382,14 +392,18 @@ def _convert_conditional_schema(
     schema: Dict[str, Any], resolver: SchemaResolver
 ) -> Any:
     """Convert an if/then/else conditional schema."""
-    # This is complex to implement properly in confuse
-    # For now, prefer 'then' if present, otherwise 'else'
-    if "then" in schema:
-        return to_template(schema["then"], resolver)
-    elif "else" in schema:
-        return to_template(schema["else"], resolver)
-    else:
-        return confuse.Template()
+    if_schema = schema.get("if")
+    then_schema = schema.get("then")
+    else_schema = schema.get("else")
+
+    # Create Conditional with the if/then/else schemas
+    return Conditional(
+        if_schema,
+        then_schema,
+        else_schema,
+        resolver,
+        schema.get("default", confuse.REQUIRED)
+    )
 
 
 def _convert_ref_schema(

@@ -395,3 +395,199 @@ class Not(confuse.Template):
             self.fail(f"must not match the template {self.template}", view)
 
         return value
+
+
+class SchemaObject(confuse.Template):
+    """A template that validates object JSON schema constraints."""
+
+    def __init__(
+        self,
+        properties_template: dict,
+        additional_properties=True,
+        resolver=None,
+        default=confuse.REQUIRED,
+    ):
+        super().__init__(default)
+        self.properties_template = properties_template
+        self.additional_properties = additional_properties
+        self.resolver = resolver
+
+    def __repr__(self):
+        args = []
+        args.append(f"properties={repr(self.properties_template)}")
+        args.append(
+            f"additional_properties={repr(self.additional_properties)}"
+        )
+
+        if self.default is not confuse.REQUIRED:
+            args.append(repr(self.default))
+
+        return "SchemaObject({0})".format(", ".join(args))
+
+    def convert(self, value, view):
+        """Validate object with additionalProperties constraints."""
+        if not isinstance(value, dict):
+            self.fail("must be an object", view)
+
+        result = {}
+
+        # Validate known properties using the properties template
+        for key, template in self.properties_template.items():
+            if key in value:
+                try:
+                    template_obj = confuse.as_template(template)
+                    result[key] = template_obj.convert(value[key], view[key])
+                except confuse.ConfigError as e:
+                    self.fail(f"property '{key}': {str(e)}", view)
+            elif not isinstance(template, confuse.Optional):
+                # Required property is missing
+                self.fail(f"missing required property '{key}'", view)
+
+        # Handle additional properties
+        additional_keys = (
+            set(value.keys()) - set(self.properties_template.keys())
+        )
+
+        if self.additional_properties is False and additional_keys:
+            additional_list = sorted(list(additional_keys))
+            self.fail(
+                f"additional properties not allowed: {additional_list}", view
+            )
+        elif isinstance(self.additional_properties, dict):
+            # Validate additional properties against schema
+            from .to_template import to_template
+            additional_template = to_template(
+                self.additional_properties, self.resolver
+            )
+            for key in additional_keys:
+                try:
+                    template_obj = confuse.as_template(additional_template)
+                    result[key] = template_obj.convert(value[key], view[key])
+                except confuse.ConfigError as e:
+                    self.fail(f"additional property '{key}': {str(e)}", view)
+        elif self.additional_properties is True:
+            # Allow additional properties as-is
+            for key in additional_keys:
+                result[key] = value[key]
+
+        return result
+
+
+class Conditional(confuse.Template):
+    """A template that validates if/then/else conditional schemas."""
+
+    def __init__(
+        self,
+        if_schema: dict,
+        then_schema: Optional[dict] = None,
+        else_schema: Optional[dict] = None,
+        resolver=None,
+        default=confuse.REQUIRED,
+    ):
+        super().__init__(default)
+        self.if_schema = if_schema
+        self.then_schema = then_schema
+        self.else_schema = else_schema
+        self.resolver = resolver
+
+    def __repr__(self):
+        args = []
+        args.append(f"if_schema={repr(self.if_schema)}")
+        if self.then_schema is not None:
+            args.append(f"then_schema={repr(self.then_schema)}")
+        if self.else_schema is not None:
+            args.append(f"else_schema={repr(self.else_schema)}")
+
+        if self.default is not confuse.REQUIRED:
+            args.append(repr(self.default))
+
+        return "Conditional({0})".format(", ".join(args))
+
+    def convert(self, value, view):
+        """Validate using if/then/else conditional logic."""
+        from .to_template import to_template
+
+        # Always convert the 'if' schema to a template and test it
+        if_template = to_template(self.if_schema, self.resolver)
+        if_template_obj = confuse.as_template(if_template)
+
+        # Test if the 'if' condition matches
+        if_matches = False
+        try:
+            # Try to validate against the 'if' schema
+            if_template_obj.convert(value, view)
+            if_matches = True
+        except confuse.ConfigError:
+            # 'if' condition doesn't match
+            if_matches = False
+
+        # Choose the appropriate branch schema
+        branch_schema = None
+        if if_matches and self.then_schema is not None:
+            branch_schema = self.then_schema
+        elif not if_matches and self.else_schema is not None:
+            branch_schema = self.else_schema
+
+        # Apply validations - tricky part of JSON Schema if/then/else
+        final_value = value
+        validation_errors = []
+
+        # JSON Schema if/then/else semantics:
+        # - The 'if' schema is always applied as validation
+        # - But if 'if' fails and we have 'else', validation can still succeed
+        # - If 'if' succeeds and we have 'then', both 'if' and 'then' must pass
+
+        if_validation_passed = if_matches
+        try:
+            final_value = if_template_obj.convert(value, view)
+        except confuse.ConfigError as e:
+            if_validation_passed = False
+            # Only record 'if' error if we don't have an appropriate branch
+            # or if the branch also fails
+            if not branch_schema:
+                validation_errors.append(f"if condition: {str(e)}")
+
+        # Apply the branch schema if present
+        branch_validation_passed = True
+        if branch_schema is not None:
+            try:
+                branch_template = to_template(branch_schema, self.resolver)
+                branch_template_obj = confuse.as_template(branch_template)
+                final_value = branch_template_obj.convert(value, view)
+            except confuse.ConfigError as e:
+                branch_validation_passed = False
+                branch_name = "then" if if_matches else "else"
+                validation_errors.append(f"{branch_name} condition: {str(e)}")
+
+        # Determine overall success based on JSON Schema semantics
+        overall_success = True
+
+        if if_matches:
+            # 'if' condition matched
+            if not if_validation_passed:
+                overall_success = False
+            if branch_schema and not branch_validation_passed:
+                overall_success = False
+        else:
+            # 'if' condition did not match
+            if branch_schema:
+                # We have an 'else' branch - only that needs to pass
+                if not branch_validation_passed:
+                    overall_success = False
+            else:
+                # No 'else' branch - 'if' itself must pass
+                if not if_validation_passed:
+                    overall_success = False
+                    validation_errors.append("if condition failed")
+
+        # If validation failed overall, report errors
+        if not overall_success and validation_errors:
+            self.fail(
+                (
+                    f"conditional validation failed: "
+                    f"{'; '.join(validation_errors)}"
+                ),
+                view,
+            )
+
+        return final_value

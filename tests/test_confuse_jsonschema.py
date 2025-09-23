@@ -14,6 +14,8 @@ from confuse_jsonschema.templates import (
     Composite,
     Not,
     SchemaOneOf,
+    SchemaObject,
+    Conditional,
 )
 
 
@@ -117,6 +119,170 @@ class TestObjectSchemas:
         assert "server" in template
         server_template = template["server"]
         assert isinstance(server_template, confuse.Optional)
+
+
+class TestAdditionalProperties:
+    """Test additionalProperties support in object schemas."""
+
+    def test_additional_properties_true_default(self):
+        """Test that additionalProperties defaults to True."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+            },
+        }
+        template = to_template(schema)
+
+        # Should return a dict template, not SchemaObject
+        assert isinstance(template, dict)
+        assert "name" in template
+
+    def test_additional_properties_true_explicit(self):
+        """Test additionalProperties: true."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+            },
+            "additionalProperties": True,
+        }
+        template = to_template(schema)
+
+        # Should return a dict template, not SchemaObject
+        assert isinstance(template, dict)
+        assert "name" in template
+
+    def test_additional_properties_false(self):
+        """Test additionalProperties: false."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+            },
+            "additionalProperties": False,
+        }
+        template = to_template(schema)
+
+        # Should return SchemaObject
+        assert isinstance(template, SchemaObject)
+        assert template.additional_properties is False
+
+    def test_additional_properties_schema(self):
+        """Test additionalProperties with a schema constraint."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+            },
+            "additionalProperties": {"type": "integer"},
+        }
+        template = to_template(schema)
+
+        # Should return SchemaObject
+        assert isinstance(template, SchemaObject)
+        assert isinstance(template.additional_properties, dict)
+        assert template.additional_properties["type"] == "integer"
+
+    def test_additional_properties_false_validation(self):
+        """Test validation with additionalProperties: false."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+            },
+            "required": ["name"],
+            "additionalProperties": False,
+        }
+        template = to_template(schema)
+
+        # Create a confuse configuration for testing
+        config = confuse.Configuration("test", read=False)
+
+        # Valid data (no additional properties)
+        valid_data = {"name": "test"}
+        config.set(valid_data)
+        result = config.get(template)
+        assert result == {"name": "test"}
+
+        # Invalid data (has additional properties)
+        invalid_data = {"name": "test", "extra": "not allowed"}
+        config.set(invalid_data)
+        with pytest.raises(
+            confuse.ConfigError, match="additional properties not allowed"
+        ):
+            config.get(template)
+
+    def test_additional_properties_schema_validation(self):
+        """Test validation with additionalProperties schema."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+            },
+            "additionalProperties": {"type": "integer", "minimum": 0},
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Valid data (additional properties match schema)
+        valid_data = {"name": "test", "count": 5, "age": 25}
+        config.set(valid_data)
+        result = config.get(template)
+        assert result == {"name": "test", "count": 5, "age": 25}
+
+        # Invalid data (additional property violates schema)
+        invalid_data = {"name": "test", "count": -5}
+        config.set(invalid_data)
+        with pytest.raises(
+            confuse.ConfigError, match="additional property.*count"
+        ):
+            config.get(template)
+
+    def test_additional_properties_mixed_validation(self):
+        """Test validation with both defined and additional properties."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+            },
+            "required": ["name"],
+            "additionalProperties": {"type": "string"},
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Valid data
+        valid_data = {
+            "name": "test",
+            "age": 30,
+            "nickname": "tester",
+            "city": "Example City"
+        }
+        config.set(valid_data)
+        result = config.get(template)
+        expected = {
+            "name": "test",
+            "age": 30,
+            "nickname": "tester",
+            "city": "Example City"
+        }
+        assert result == expected
+
+        # Invalid data (additional property wrong type)
+        invalid_data = {
+            "name": "test",
+            "age": 30,
+            "score": 100  # Should be string, not integer
+        }
+        config.set(invalid_data)
+        with pytest.raises(
+            confuse.ConfigError, match="additional property.*score"
+        ):
+            config.get(template)
 
 
 class TestArraySchemas:
@@ -239,9 +405,11 @@ class TestErrorHandling:
         template = to_template(complex_schema)
 
         # Basic verification that conversion worked
-        assert "name" in template
-        assert "age" in template
-        assert "emails" in template
+        # Since additionalProperties is False, we get a SchemaObject
+        assert isinstance(template, SchemaObject)
+        assert "name" in template.properties_template
+        assert "age" in template.properties_template
+        assert "emails" in template.properties_template
 
 
 class TestAdvancedTypes:
@@ -684,19 +852,184 @@ class TestArrayConstraints:
 class TestConditionalSchemas:
     """Test conditional schema handling."""
 
-    def test_if_then_schema(self):
-        """Test if/then conditional schema."""
+    def test_if_then_schema_creation(self):
+        """Test if/then conditional schema creation."""
         schema = {"if": {"type": "string"}, "then": {"minLength": 1}}
         template = to_template(schema)
-        # Should return the 'then' schema
-        assert template is not None
+        assert isinstance(template, Conditional)
+        assert template.if_schema == {"type": "string"}
+        assert template.then_schema == {"minLength": 1}
+        assert template.else_schema is None
 
-    def test_if_else_schema(self):
-        """Test if/else conditional schema."""
+    def test_if_else_schema_creation(self):
+        """Test if/else conditional schema creation."""
         schema = {"if": {"type": "string"}, "else": {"type": "integer"}}
         template = to_template(schema)
-        # Should return the 'else' schema (since no 'then')
-        assert template is not None
+        assert isinstance(template, Conditional)
+        assert template.if_schema == {"type": "string"}
+        assert template.then_schema is None
+        assert template.else_schema == {"type": "integer"}
+
+    def test_if_then_else_schema_creation(self):
+        """Test if/then/else conditional schema creation."""
+        schema = {
+            "if": {"type": "string"},
+            "then": {"minLength": 2},
+            "else": {"type": "integer", "minimum": 0}
+        }
+        template = to_template(schema)
+        assert isinstance(template, Conditional)
+        assert template.if_schema == {"type": "string"}
+        assert template.then_schema == {"minLength": 2}
+        assert template.else_schema == {"type": "integer", "minimum": 0}
+
+    def test_if_then_validation_success(self):
+        """Test if/then validation when condition matches."""
+        schema = {"if": {"type": "string"}, "then": {"minLength": 2}}
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Valid string that matches both 'if' and 'then'
+        config.set({"value": "hello"})
+        result = config["value"].get(template)
+        assert result == "hello"
+
+    def test_if_then_validation_failure(self):
+        """Test if/then validation when 'then' condition fails."""
+        schema = {"if": {"type": "string"}, "then": {"minLength": 5}}
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # String that matches 'if' but fails 'then'
+        config.set({"value": "hi"})
+        with pytest.raises(
+            confuse.ConfigError, match="conditional validation failed"
+        ):
+            config["value"].get(template)
+
+    def test_if_else_validation_condition_matches(self):
+        """Test if/else when 'if' condition matches (else ignored)."""
+        schema = {"if": {"type": "string"}, "else": {"type": "integer"}}
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # String matches 'if' condition, 'else' is ignored
+        config.set({"value": "hello"})
+        result = config["value"].get(template)
+        assert result == "hello"
+
+    def test_if_else_validation_condition_fails(self):
+        """Test if/else when 'if' condition fails (else applied)."""
+        schema = {
+            "if": {"type": "string"},
+            "else": {"type": "integer", "minimum": 0}
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Integer doesn't match 'if', 'else' is applied
+        config.set({"value": 42})
+        result = config["value"].get(template)
+        assert result == 42
+
+        # Invalid data for 'else' condition
+        config.set({"value": -5})
+        with pytest.raises(
+            confuse.ConfigError, match="conditional validation failed"
+        ):
+            config["value"].get(template)
+
+    def test_if_then_else_validation_then_branch(self):
+        """Test if/then/else when 'if' matches, 'then' applied."""
+        schema = {
+            "if": {"type": "string"},
+            "then": {"minLength": 3},
+            "else": {"type": "integer"}
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Valid string for 'then' branch
+        config.set({"value": "hello"})
+        result = config["value"].get(template)
+        assert result == "hello"
+
+        # Invalid string for 'then' branch
+        config.set({"value": "hi"})
+        with pytest.raises(
+            confuse.ConfigError, match="conditional validation failed"
+        ):
+            config["value"].get(template)
+
+    def test_if_then_else_validation_else_branch(self):
+        """Test if/then/else when 'if' fails, 'else' applied."""
+        schema = {
+            "if": {"type": "string"},
+            "then": {"minLength": 3},
+            "else": {"type": "integer", "minimum": 0}
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Valid integer for 'else' branch
+        config.set({"value": 42})
+        result = config["value"].get(template)
+        assert result == 42
+
+        # Invalid integer for 'else' branch
+        config.set({"value": -5})
+        with pytest.raises(
+            confuse.ConfigError, match="conditional validation failed"
+        ):
+            config["value"].get(template)
+
+    def test_nested_conditional_schemas(self):
+        """Test nested conditional schemas."""
+        schema = {
+            "if": {"type": "object"},
+            "then": {
+                "properties": {
+                    "name": {
+                        "if": {"type": "string"},
+                        "then": {"minLength": 1}
+                    }
+                }
+            }
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Valid nested conditional
+        valid_data = {"name": "test"}
+        config.set(valid_data)
+        result = config.get(template)
+        assert result == {"name": "test"}
+
+    def test_conditional_only_if(self):
+        """Test conditional with only 'if' (no then/else)."""
+        schema = {"if": {"type": "string", "minLength": 2}}
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Valid data matching 'if'
+        config.set({"value": "hello"})
+        result = config["value"].get(template)
+        assert result == "hello"
+
+        # Invalid data for 'if'
+        config.set({"value": "h"})
+        with pytest.raises(
+            confuse.ConfigError, match="conditional validation failed"
+        ):
+            config["value"].get(template)
 
 
 class TestReferenceSchemas:
