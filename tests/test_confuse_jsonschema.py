@@ -362,7 +362,9 @@ class TestFormatValidation:
 
         for email in invalid_emails:
             config.set({'value': email})
-            with pytest.raises(confuse.ConfigValueError, match="must be a valid email"):
+            with pytest.raises(
+                confuse.ConfigValueError, match="must be a valid email"
+            ):
                 config.get({'value': template})
 
     def test_email_format_with_other_constraints(self):
@@ -390,7 +392,9 @@ class TestFormatValidation:
 
         # Valid email format but too short (4 chars)
         config.set({'value': 'a@b.c'[:-1]})  # 4 chars
-        with pytest.raises(confuse.ConfigValueError, match="must be at least 5 characters"):
+        with pytest.raises(
+            confuse.ConfigValueError, match="must be at least 5 characters"
+        ):
             config.get({'value': template})
 
     def test_date_format_validation(self):
@@ -425,7 +429,9 @@ class TestFormatValidation:
 
         for date_val in invalid_dates:
             config.set({'value': date_val})
-            with pytest.raises(confuse.ConfigValueError, match="must be a valid date"):
+            with pytest.raises(
+                confuse.ConfigValueError, match="must be a valid date"
+            ):
                 config.get({'value': template})
 
     def test_date_time_format_validation(self):
@@ -451,8 +457,8 @@ class TestFormatValidation:
         # Invalid date-times
         invalid_datetimes = [
             "2023-12-25 10:30:00",  # missing T
-            "2023-12-25T25:30:00Z", # invalid hour
-            "2023-12-25T10:70:00Z", # invalid minute
+            "2023-12-25T25:30:00Z",  # invalid hour
+            "2023-12-25T10:70:00Z",  # invalid minute
             "not-a-datetime",
             "2023-12-25T10:30:00",  # missing timezone
             ""
@@ -460,7 +466,9 @@ class TestFormatValidation:
 
         for dt in invalid_datetimes:
             config.set({'value': dt})
-            with pytest.raises(confuse.ConfigValueError, match="must be a valid date-time"):
+            with pytest.raises(
+                confuse.ConfigValueError, match="must be a valid date-time"
+            ):
                 config.get({'value': template})
 
     def test_uri_format_validation(self):
@@ -494,7 +502,9 @@ class TestFormatValidation:
 
         for uri in invalid_uris:
             config.set({'value': uri})
-            with pytest.raises(confuse.ConfigValueError, match="must be a valid uri"):
+            with pytest.raises(
+                confuse.ConfigValueError, match="must be a valid uri"
+            ):
                 config.get({'value': template})
 
     def test_uuid_format_validation(self):
@@ -519,7 +529,7 @@ class TestFormatValidation:
         # Invalid UUIDs
         invalid_uuids = [
             "123e4567-e89b-12d3-a456-42661417400",   # too short
-            "123e4567-e89b-12d3-a456-4266141740000", # too long
+            "123e4567-e89b-12d3-a456-4266141740000",  # too long
             "123e4567-e89b-12d3-a456",               # missing parts
             "not-a-uuid",
             "123g4567-e89b-12d3-a456-426614174000",  # invalid character
@@ -528,7 +538,9 @@ class TestFormatValidation:
 
         for uuid_val in invalid_uuids:
             config.set({'value': uuid_val})
-            with pytest.raises(confuse.ConfigValueError, match="must be a valid uuid"):
+            with pytest.raises(
+                confuse.ConfigValueError, match="must be a valid uuid"
+            ):
                 config.get({'value': template})
 
     def test_ipv4_format_validation(self):
@@ -564,7 +576,9 @@ class TestFormatValidation:
 
         for ip in invalid_ipv4s:
             config.set({'value': ip})
-            with pytest.raises(confuse.ConfigValueError, match="must be a valid ipv4"):
+            with pytest.raises(
+                confuse.ConfigValueError, match="must be a valid ipv4"
+            ):
                 config.get({'value': template})
 
     def test_ipv6_format_validation(self):
@@ -597,7 +611,9 @@ class TestFormatValidation:
 
         for ip in invalid_ipv6s:
             config.set({'value': ip})
-            with pytest.raises(confuse.ConfigValueError, match="must be a valid ipv6"):
+            with pytest.raises(
+                confuse.ConfigValueError, match="must be a valid ipv6"
+            ):
                 config.get({'value': template})
 
 

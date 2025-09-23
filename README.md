@@ -80,7 +80,9 @@ validated_config = config.get(template)
 #### String Constraints
 - `minLength` / `maxLength` - enforced via `SchemaString`
 - `pattern` - regex validation via `SchemaString`
-- `format` - special formats like `path`, `uri-reference` convert to `confuse.Filename`
+- `format` - extensive format validation support via `SchemaString`
+  - Special confuse formats: `path`, `uri-reference` convert to `confuse.Filename`
+  - Standard formats: `email`, `date`, `date-time`, `uri`, `uuid`, `ipv4`, `ipv6`
 
 #### Numeric Constraints
 - `minimum` / `maximum` - inclusive bounds via `SchemaInteger`/`SchemaNumber`
@@ -99,16 +101,17 @@ validated_config = config.get(template)
 
 #### Logical Operators
 - `anyOf` - any schema can match using `confuse.OneOf`
-- `oneOf` - exactly one schema must match using `confuse.OneOf`
+- `oneOf` - exactly one schema must match using custom `SchemaOneOf` template
 - `allOf` - all schemas must match using custom `AllOf` template
-- `if`/`then`/`else` - basic conditional support
+- `not` - value must NOT match schema using custom `Not` template
 
-###  Partially Supported
+#### Schema References
+- `$ref` - full JSON Pointer reference resolution with cycle detection
+  - Supports internal references (e.g., `#/definitions/User`)
+  - Handles nested references recursively
+  - Detects and prevents circular references
 
-#### References
-- `$ref` - basic placeholder support (returns generic `confuse.Template`)
-  - **Limitation**: No actual reference resolution implemented
-  - **Workaround**: Manually inline referenced schemas
+### Partially Supported
 
 #### Object Constraints
 - `additionalProperties` - recognized but not enforced
@@ -164,11 +167,11 @@ validated_config = config.get(template)
    ```
    No validation of dictionary key names
 
-5. **Format Validation**
+5. **Advanced Format Validation**
    ```json
-   {"type": "string", "format": "email"}
+   {"type": "string", "format": "hostname"}
    ```
-   Most JSON Schema formats aren't supported (only `path` and `uri-reference`)
+   Some specialized JSON Schema formats aren't supported (only common formats like `email`, `date`, `uri`, etc.)
 
 6. **Schema Metadata**
    - `title`, `description`, `examples` - ignored (no impact on validation)
@@ -214,48 +217,75 @@ schema = {
 template = to_template(schema)
 ```
 
-### Workarounds for Unsupported Features
+### Advanced Logical Operators
 
 ```python
-# Instead of $ref, inline the schema
-# Not supported:
+# oneOf - exactly one schema must match
+schema_oneof = {
+    "oneOf": [
+        {"type": "string", "maxLength": 5},
+        {"type": "integer", "minimum": 100}
+    ]
+}
+
+# allOf - all schemas must match
+schema_allof = {
+    "allOf": [
+        {"type": "string"},
+        {"minLength": 2},
+        {"maxLength": 10}
+    ]
+}
+
+# not - value must NOT match the schema
+schema_not = {
+    "not": {"type": "string"}
+}
+
+template = to_template(schema_oneof)  # Uses SchemaOneOf template
+```
+
+### Schema References with $ref
+
+```python
+# Full $ref support with cycle detection
 schema_with_ref = {
     "type": "object",
     "properties": {
-        "user": {"$ref": "#/definitions/User"}
+        "user": {"$ref": "#/definitions/User"},
+        "admin": {"$ref": "#/definitions/User"}
     },
     "definitions": {
         "User": {
             "type": "object",
-            "properties": {"name": {"type": "string"}}
+            "properties": {
+                "name": {"type": "string"},
+                "email": {"type": "string", "format": "email"}
+            }
         }
     }
 }
 
-# Use this instead:
-schema_inlined = {
-    "type": "object",
-    "properties": {
-        "user": {
-            "type": "object",
-            "properties": {"name": {"type": "string"}}
-        }
-    }
-}
+template = to_template(schema_with_ref)
 ```
 
-### Format Validation
+### Format Validation Examples
 ```python
-# Most formats aren't supported - use pattern instead
-# Not supported:
-{"type": "string", "format": "email"}
+# Supported format validations:
+{"type": "string", "format": "email"}         # Email validation
+{"type": "string", "format": "date"}          # YYYY-MM-DD format
+{"type": "string", "format": "date-time"}     # RFC 3339 date-time
+{"type": "string", "format": "uri"}           # URI validation
+{"type": "string", "format": "uuid"}          # UUID format
+{"type": "string", "format": "ipv4"}          # IPv4 address
+{"type": "string", "format": "ipv6"}          # IPv6 address
 
-# Use pattern instead:
-{"type": "string", "pattern": "^[^@]+@[^@]+\\.[^@]+$"}
+# Special confuse formats:
+{"type": "string", "format": "path"}          # → confuse.Filename
+{"type": "string", "format": "uri-reference"} # → confuse.Filename
 
-# Supported formats:
-{"type": "string", "format": "path"}        # → confuse.Filename
-{"type": "string", "format": "uri-reference"}  # → confuse.Filename
+# For unsupported formats, use pattern instead:
+{"type": "string", "pattern": "^[a-zA-Z0-9-]+$"}
 ```
 
 ## Development
