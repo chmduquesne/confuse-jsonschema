@@ -1157,19 +1157,16 @@ class TestSchemaConsistency:
         schema = {
             "oneOf": [
                 {"type": "string", "maxLength": 5},
-                {"type": "string", "minLength": 10},
+                {"type": "integer", "minimum": 10},
             ]
         }
 
         test_cases = [
-            ("abc", True, "matches first oneOf option (short string)"),
-            (
-                "verylongstring",
-                True,
-                "matches second oneOf option (long string)",
-            ),
-            ("medium", False, "matches neither oneOf option"),
-            (123, False, "not a string"),
+            ("hello", True, "short string matches first schema only"),
+            (15, True, "integer >= 10 matches second schema only"),
+            (5, False, "integer < 10 matches no schemas"),
+            ("toolong", False, "long string matches no schemas"),
+            (3.14, False, "float matches no schemas"),
         ]
 
         self._test_consistency(schema, test_cases)
@@ -1231,6 +1228,23 @@ class TestSchemaConsistency:
                 False,
                 "duplicate tags",
             ),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_oneof_overlapping_schemas_consistency(self):
+        """Test oneOf with overlapping schemas - should fail when multiple match."""
+        schema = {
+            "oneOf": [
+                {"type": "number"},  # Matches integers and floats
+                {"type": "integer"},  # Matches integers only
+            ]
+        }
+
+        test_cases = [
+            (42, False, "integer matches both schemas - should fail"),
+            (3.14, True, "float matches only first schema"),
+            ("hello", False, "string matches no schemas"),
         ]
 
         self._test_consistency(schema, test_cases)
@@ -1661,87 +1675,6 @@ class TestSchemaOneOfValidation:
             config.get({"value": template})
 
 
-class TestSchemaOneOfConsistency:
-    """Test SchemaOneOf consistency with JSON Schema oneOf behavior."""
-
-    def _validate_with_jsonschema(self, schema: dict, instance) -> tuple[bool, str]:
-        """Validate using jsonschema library."""
-        import jsonschema
-
-        try:
-            jsonschema.validate(instance, schema)
-            return True, ""
-        except jsonschema.ValidationError as e:
-            return False, str(e)
-        except Exception as e:
-            return False, f"Schema error: {str(e)}"
-
-    def _validate_with_confuse(self, schema: dict, instance) -> tuple[bool, str]:
-        """Validate using our SchemaOneOf template."""
-        try:
-            template = to_template(schema)
-            config = confuse.Configuration("test", read=False)
-            config.set({"value": instance})
-            config.get({"value": template})
-            return True, ""
-        except Exception as e:
-            return False, str(e)
-
-    def test_oneof_consistency(self):
-        """Test oneOf validation consistency with JSON Schema."""
-        schema = {
-            "oneOf": [
-                {"type": "string", "maxLength": 5},
-                {"type": "integer", "minimum": 10},
-            ]
-        }
-
-        test_cases = [
-            ("hello", True, "short string matches first schema only"),
-            (15, True, "integer >= 10 matches second schema only"),
-            (5, False, "integer < 10 matches no schemas"),
-            ("toolong", False, "long string matches no schemas"),
-            (3.14, False, "float matches no schemas"),
-        ]
-
-        for instance, expected_valid, description in test_cases:
-            jsonschema_valid, _ = self._validate_with_jsonschema(schema, instance)
-            confuse_valid, _ = self._validate_with_confuse(schema, instance)
-
-            assert jsonschema_valid == confuse_valid == expected_valid, (
-                f"Validation inconsistency for {description}:\n"
-                f"  Instance: {instance}\n"
-                f"  Expected: {expected_valid}\n"
-                f"  JSON Schema: {jsonschema_valid}\n"
-                f"  SchemaOneOf: {confuse_valid}"
-            )
-
-    def test_oneof_overlapping_schemas_consistency(self):
-        """Test oneOf with overlapping schemas - should fail when multiple match."""
-        schema = {
-            "oneOf": [
-                {"type": "number"},  # Matches integers and floats
-                {"type": "integer"},  # Matches integers only
-            ]
-        }
-
-        test_cases = [
-            (42, False, "integer matches both schemas - should fail"),
-            (3.14, True, "float matches only first schema"),
-            ("hello", False, "string matches no schemas"),
-        ]
-
-        for instance, expected_valid, description in test_cases:
-            jsonschema_valid, _ = self._validate_with_jsonschema(schema, instance)
-            confuse_valid, _ = self._validate_with_confuse(schema, instance)
-
-            assert jsonschema_valid == confuse_valid == expected_valid, (
-                f"Validation inconsistency for {description}:\n"
-                f"  Instance: {instance}\n"
-                f"  Expected: {expected_valid}\n"
-                f"  JSON Schema: {jsonschema_valid}\n"
-                f"  SchemaOneOf: {confuse_valid}"
-            )
 
 
 class TestConstWithLogicalOperators:
