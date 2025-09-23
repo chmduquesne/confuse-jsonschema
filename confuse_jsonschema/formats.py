@@ -27,9 +27,11 @@ def register_format(name: str):
     Returns:
         Decorator function that registers the validator
     """
+
     def decorator(func: Callable[[str], bool]):
         FORMAT_VALIDATORS[name] = func
         return func
+
     return decorator
 
 
@@ -55,7 +57,7 @@ def validate_email(value: str) -> bool:
         return False
 
     # Basic email pattern - more permissive than RFC 5322 for practicality
-    pattern = r'^[^@\s]+@[^@\s]+\.[^@\s]+$'
+    pattern = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
     return re.match(pattern, value) is not None
 
 
@@ -101,23 +103,23 @@ def validate_date_time(value: str) -> bool:
 
     # Common date-time patterns for RFC 3339
     patterns = [
-        r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$',  # 2023-12-25T10:30:00Z
+        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$",  # 2023-12-25T10:30:00Z
         # with milliseconds
-        r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$',
+        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$",
         # with timezone
-        r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$',
+        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$",
         # full format with milliseconds and timezone
-        r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}$'
+        r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}$",
     ]
 
     for pattern in patterns:
         if re.match(pattern, value):
             # Additional validation: parse both date and time parts
             try:
-                if 'T' not in value:
+                if "T" not in value:
                     continue
 
-                date_time_parts = value.split('T')
+                date_time_parts = value.split("T")
                 date_part = date_time_parts[0]
                 time_part = date_time_parts[1]
 
@@ -127,18 +129,18 @@ def validate_date_time(value: str) -> bool:
                 # Validate time part - remove timezone and milliseconds
                 # for parsing
                 time_for_validation = time_part
-                if time_for_validation.endswith('Z'):
+                if time_for_validation.endswith("Z"):
                     time_for_validation = time_for_validation[:-1]
-                elif '+' in time_for_validation:
-                    time_for_validation = time_for_validation.split('+')[0]
-                elif time_for_validation.count('-') > 0:
+                elif "+" in time_for_validation:
+                    time_for_validation = time_for_validation.split("+")[0]
+                elif time_for_validation.count("-") > 0:
                     # Handle negative timezone offsets
-                    parts = time_for_validation.split('-')
-                    if len(parts) > 1 and ':' in parts[-1]:
-                        time_for_validation = '-'.join(parts[:-1])
+                    parts = time_for_validation.split("-")
+                    if len(parts) > 1 and ":" in parts[-1]:
+                        time_for_validation = "-".join(parts[:-1])
 
                 # Handle milliseconds
-                if '.' in time_for_validation:
+                if "." in time_for_validation:
                     time_format = "%H:%M:%S.%f"
                 else:
                     time_format = "%H:%M:%S"
@@ -190,7 +192,7 @@ def validate_uuid(value: str) -> bool:
         return False
 
     # UUID pattern: 8-4-4-4-12 hexadecimal digits
-    pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     return re.match(pattern, value.lower()) is not None
 
 

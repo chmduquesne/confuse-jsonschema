@@ -90,9 +90,14 @@ validated_config = config.get(template)
 - `multipleOf` - divisibility validation
 
 #### Array Constraints
-- `minItems` / `maxItems` - size validation via `SchemaSequence`
-- `uniqueItems` - uniqueness validation via `SchemaSequence`
-- `items` - item type specification
+- `minItems` / `maxItems` - size validation via `SchemaSequence` or `Array`
+- `uniqueItems` - uniqueness validation via `SchemaSequence` or `Array`
+- `items` - item type specification for uniform arrays
+- `prefixItems` - tuple validation via `Array`
+  - Validates specific array positions with different schemas
+  - Supports partial tuples (fewer items than prefixItems)
+  - Works with `items` for additional items beyond prefix
+  - Setting `items: false` disallows additional items
 
 #### Object Features
 - `properties` - property definitions
@@ -140,22 +145,13 @@ validated_config = config.get(template)
 
 #### Advanced JSON Schema Features
 
-1. **Complex Array Validation**
-   ```json
-   {
-     "prefixItems": [{"type": "string"}, {"type": "number"}],
-     "items": false
-   }
-   ```
-   Confuse sequences validate all items uniformly
-
-2. **Advanced Format Validation**
+1. **Advanced Format Validation**
    ```json
    {"type": "string", "format": "hostname"}
    ```
    Some specialized JSON Schema formats aren't supported (only common formats like `email`, `date`, `uri`, etc.)
 
-3. **Schema Metadata**
+2. **Schema Metadata**
    - `title`, `description`, `examples` - ignored (no impact on validation)
    - `$id`, `$schema` - ignored
    - `deprecated` - ignored

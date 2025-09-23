@@ -224,6 +224,101 @@ class SchemaSequence(confuse.Sequence):
         return value
 
 
+class Array(confuse.Template):
+    """Template for arrays with prefixItems and items validation."""
+
+    def __init__(
+        self,
+        prefix_templates: List,
+        additional_items_template=None,
+        min_items: Optional[int] = None,
+        max_items: Optional[int] = None,
+        unique_items: bool = False,
+        default=confuse.REQUIRED,
+    ):
+        super().__init__(default)
+        self.prefix_templates = prefix_templates
+        self.additional_items_template = additional_items_template
+        self.min_items = min_items
+        self.max_items = max_items
+        self.unique_items = unique_items
+
+    def __repr__(self):
+        args = []
+        args.append(f"prefix_templates={repr(self.prefix_templates)}")
+        if self.additional_items_template is not None:
+            args.append(
+                f"additional_items={repr(self.additional_items_template)}"
+            )
+        if self.min_items is not None:
+            args.append(f"min_items={self.min_items}")
+        if self.max_items is not None:
+            args.append(f"max_items={self.max_items}")
+        if self.unique_items:
+            args.append(f"unique_items={self.unique_items}")
+        if self.default is not confuse.REQUIRED:
+            args.append(repr(self.default))
+        return "Array({0})".format(", ".join(args))
+
+    def convert(self, value, view):
+        if not isinstance(value, list):
+            self.fail("must be an array", view)
+
+        # Validate array constraints
+        if self.min_items is not None and len(value) < self.min_items:
+            self.fail(f"must have at least {self.min_items} items", view)
+
+        if self.max_items is not None and len(value) > self.max_items:
+            self.fail(f"must have at most {self.max_items} items", view)
+
+        result = []
+
+        # Validate prefix items (tuple part)
+        for i, item in enumerate(value):
+            if i < len(self.prefix_templates):
+                # Use specific template for this position
+                try:
+                    template_obj = confuse.as_template(
+                        self.prefix_templates[i]
+                    )
+                    result.append(template_obj.convert(item, view[i]))
+                except confuse.ConfigError as e:
+                    self.fail(f"item at index {i}: {str(e)}", view)
+            else:
+                # Handle additional items beyond prefix
+                if self.additional_items_template is False:
+                    # Additional items not allowed
+                    self.fail(
+                        f"additional items not allowed beyond index "
+                        f"{len(self.prefix_templates) - 1}",
+                        view,
+                    )
+                elif self.additional_items_template is not None:
+                    # Validate against additional items schema
+                    try:
+                        template_obj = confuse.as_template(
+                            self.additional_items_template
+                        )
+                        result.append(template_obj.convert(item, view[i]))
+                    except confuse.ConfigError as e:
+                        self.fail(
+                            f"additional item at index {i}: {str(e)}", view
+                        )
+                else:
+                    # additional_items_template is None/True - allow as-is
+                    result.append(item)
+
+        # Validate uniqueness if required
+        if self.unique_items:
+            seen = []
+            for item in result:
+                if item in seen:
+                    self.fail("all items must be unique", view)
+                seen.append(item)
+
+        return result
+
+
 class AllOf(confuse.Template):
     """A template validating that a value matches all provided templates."""
 
@@ -454,8 +549,8 @@ class SchemaObject(confuse.Template):
                 self.fail(f"missing required property '{key}'", view)
 
         # Handle additional properties
-        additional_keys = (
-            set(value.keys()) - set(self.properties_template.keys())
+        additional_keys = set(value.keys()) - set(
+            self.properties_template.keys()
         )
 
         if self.additional_properties is False and additional_keys:
@@ -466,6 +561,7 @@ class SchemaObject(confuse.Template):
         elif isinstance(self.additional_properties, dict):
             # Validate additional properties against schema
             from .to_template import to_template
+
             additional_template = to_template(
                 self.additional_properties, self.resolver
             )
@@ -499,7 +595,7 @@ class SchemaObject(confuse.Template):
                     self.fail(
                         f"property '{trigger_prop}' requires "
                         f"properties: {missing_list}",
-                        view
+                        view,
                     )
 
     def _validate_property_names(self, value, view):
@@ -507,9 +603,9 @@ class SchemaObject(confuse.Template):
         for property_name in value.keys():
             try:
                 # Create a temporary configuration for property name validation
-                temp_config = confuse.Configuration('temp')
-                temp_config.set({'prop_name': property_name})
-                property_name_view = temp_config['prop_name']
+                temp_config = confuse.Configuration("temp")
+                temp_config.set({"prop_name": property_name})
+                property_name_view = temp_config["prop_name"]
                 template_obj = confuse.as_template(
                     self.property_names_template
                 )
@@ -517,7 +613,7 @@ class SchemaObject(confuse.Template):
             except confuse.ConfigError as e:
                 self.fail(
                     f"property name '{property_name}' is invalid: {str(e)}",
-                    view
+                    view,
                 )
 
     def _validate_dependent_schemas(self, value, view, result):
@@ -534,7 +630,7 @@ class SchemaObject(confuse.Template):
                     self.fail(
                         f"dependent schema for property '{trigger_prop}': "
                         f"{str(e)}",
-                        view
+                        view,
                     )
 
 

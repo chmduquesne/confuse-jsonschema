@@ -13,6 +13,7 @@ from .templates import (
     SchemaInteger,
     SchemaNumber,
     SchemaSequence,
+    Array,
     AllOf,
     Composite,
     Not,
@@ -124,12 +125,12 @@ def to_template(
     elif schema_type == "null":
         type_template = _convert_null_schema(schema)
     elif schema_type is None and (
-        "properties" in schema or
-        "required" in schema or
-        "additionalProperties" in schema or
-        "dependentRequired" in schema or
-        "dependentSchemas" in schema or
-        "propertyNames" in schema
+        "properties" in schema
+        or "required" in schema
+        or "additionalProperties" in schema
+        or "dependentRequired" in schema
+        or "dependentSchemas" in schema
+        or "propertyNames" in schema
     ):
         # Handle objects without explicit type (object-related constraints)
         type_template = _convert_object_schema(schema, resolver)
@@ -143,7 +144,13 @@ def to_template(
             "exclusiveMaximum",
             "multipleOf",
         ]
-        array_constraints = ["minItems", "maxItems", "uniqueItems", "items"]
+        array_constraints = [
+            "minItems",
+            "maxItems",
+            "uniqueItems",
+            "items",
+            "prefixItems",
+        ]
 
         if any(constraint in schema for constraint in string_constraints):
             # Infer string type from string constraints
@@ -234,10 +241,10 @@ def _convert_object_schema(
 
     # Use SchemaObject if we have constraints or dependencies
     if (
-        additional_properties is not True or
-        dependent_required or
-        dependent_templates or
-        property_names_template is not None
+        additional_properties is not True
+        or dependent_required
+        or dependent_templates
+        or property_names_template is not None
     ):
         return SchemaObject(
             template,
@@ -246,7 +253,7 @@ def _convert_object_schema(
             dependent_templates,
             property_names_template,
             resolver,
-            schema.get("default", confuse.REQUIRED)
+            schema.get("default", confuse.REQUIRED),
         )
 
     return template
@@ -254,13 +261,39 @@ def _convert_object_schema(
 
 def _convert_array_schema(
     schema: Dict[str, Any], resolver: SchemaResolver
-) -> Union[confuse.Sequence, SchemaSequence]:
-    """Convert an array schema to a Confuse Sequence template."""
-    items_schema = schema.get("items", {})
+) -> Union[confuse.Sequence, SchemaSequence, Array]:
+    """Convert an array schema to a Confuse template."""
+    prefix_items = schema.get("prefixItems")
+    items_schema = schema.get("items")
     min_items = schema.get("minItems")
     max_items = schema.get("maxItems")
     unique_items = schema.get("uniqueItems", False)
 
+    # Check if this is a tuple schema (has prefixItems)
+    if prefix_items is not None:
+        # Convert prefixItems schemas to templates
+        prefix_templates = [
+            to_template(item_schema, resolver) for item_schema in prefix_items
+        ]
+
+        # Handle additional items
+        additional_items_template = None
+        if items_schema is False:
+            additional_items_template = False
+        elif items_schema is not None:
+            additional_items_template = to_template(items_schema, resolver)
+        # If items_schema is None/True, additional_items_template stays None
+
+        return Array(
+            prefix_templates,
+            additional_items_template,
+            min_items,
+            max_items,
+            unique_items,
+            schema.get("default", confuse.REQUIRED),
+        )
+
+    # Regular array schema (uniform items)
     if not items_schema:
         # Default to allowing any items
         item_template = confuse.Template()
@@ -295,8 +328,12 @@ def _convert_string_schema(
         )
 
     # If we have constraints (including format), use SchemaString
-    if (min_length is not None or max_length is not None or
-            pattern is not None or string_format is not None):
+    if (
+        min_length is not None
+        or max_length is not None
+        or pattern is not None
+        or string_format is not None
+    ):
         return SchemaString(
             min_length, max_length, pattern, string_format, default_value
         )
@@ -441,7 +478,7 @@ def _convert_conditional_schema(
         then_schema,
         else_schema,
         resolver,
-        schema.get("default", confuse.REQUIRED)
+        schema.get("default", confuse.REQUIRED),
     )
 
 

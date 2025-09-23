@@ -10,6 +10,7 @@ from confuse_jsonschema.templates import (
     SchemaInteger,
     SchemaNumber,
     SchemaSequence,
+    Array,
     AllOf,
     Composite,
     Not,
@@ -260,7 +261,7 @@ class TestAdditionalProperties:
             "name": "test",
             "age": 30,
             "nickname": "tester",
-            "city": "Example City"
+            "city": "Example City",
         }
         config.set(valid_data)
         result = config.get(template)
@@ -268,7 +269,7 @@ class TestAdditionalProperties:
             "name": "test",
             "age": 30,
             "nickname": "tester",
-            "city": "Example City"
+            "city": "Example City",
         }
         assert result == expected
 
@@ -276,7 +277,7 @@ class TestAdditionalProperties:
         invalid_data = {
             "name": "test",
             "age": 30,
-            "score": 100  # Should be string, not integer
+            "score": 100,  # Should be string, not integer
         }
         config.set(invalid_data)
         with pytest.raises(
@@ -495,19 +496,19 @@ class TestFormatValidation:
         template = to_template(schema)
 
         # Create a mock config view for testing
-        config = confuse.Configuration('test')
+        config = confuse.Configuration("test")
 
         # Test valid emails
         valid_emails = [
             "test@example.com",
             "user.name@domain.org",
             "user+tag@example.co.uk",
-            "123@domain.com"
+            "123@domain.com",
         ]
 
         for email in valid_emails:
-            config.set({'value': email})
-            result = config.get({'value': template})['value']
+            config.set({"value": email})
+            result = config.get({"value": template})["value"]
             assert result == email
 
     def test_invalid_email_format(self):
@@ -515,7 +516,7 @@ class TestFormatValidation:
         schema = {"type": "string", "format": "email"}
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
+        config = confuse.Configuration("test")
 
         # Test invalid emails
         invalid_emails = [
@@ -525,15 +526,15 @@ class TestFormatValidation:
             "test@example",  # no TLD
             "test @example.com",  # space
             "",
-            "test@ex ample.com"   # space in domain
+            "test@ex ample.com",  # space in domain
         ]
 
         for email in invalid_emails:
-            config.set({'value': email})
+            config.set({"value": email})
             with pytest.raises(
                 confuse.ConfigValueError, match="must be a valid email"
             ):
-                config.get({'value': template})
+                config.get({"value": template})
 
     def test_email_format_with_other_constraints(self):
         """Test email format combined with other string constraints."""
@@ -541,85 +542,81 @@ class TestFormatValidation:
             "type": "string",
             "format": "email",
             "minLength": 5,
-            "maxLength": 50
+            "maxLength": 50,
         }
         template = to_template(schema)
         assert isinstance(template, SchemaString)
 
-        config = confuse.Configuration('test')
+        config = confuse.Configuration("test")
 
         # Valid email within length constraints
-        config.set({'value': 'test@example.com'})
-        result = config.get({'value': template})['value']
-        assert result == 'test@example.com'
+        config.set({"value": "test@example.com"})
+        result = config.get({"value": template})["value"]
+        assert result == "test@example.com"
 
         # Valid email format but too short
-        config.set({'value': 'a@b.c'})  # 5 chars, should be valid
-        result = config.get({'value': template})['value']
-        assert result == 'a@b.c'
+        config.set({"value": "a@b.c"})  # 5 chars, should be valid
+        result = config.get({"value": template})["value"]
+        assert result == "a@b.c"
 
         # Valid email format but too short (4 chars)
-        config.set({'value': 'a@b.c'[:-1]})  # 4 chars
+        config.set({"value": "a@b.c"[:-1]})  # 4 chars
         with pytest.raises(
             confuse.ConfigValueError, match="must be at least 5 characters"
         ):
-            config.get({'value': template})
+            config.get({"value": template})
 
     def test_date_format_validation(self):
         """Test date format validation."""
         schema = {"type": "string", "format": "date"}
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
+        config = confuse.Configuration("test")
 
         # Valid dates
-        valid_dates = [
-            "2023-12-25",
-            "2000-01-01",
-            "2024-02-29"  # leap year
-        ]
+        valid_dates = ["2023-12-25", "2000-01-01", "2024-02-29"]  # leap year
 
         for date_val in valid_dates:
-            config.set({'value': date_val})
-            result = config.get({'value': template})['value']
+            config.set({"value": date_val})
+            result = config.get({"value": template})["value"]
             assert result == date_val
 
         # Invalid dates
         invalid_dates = [
             "2023-13-01",  # invalid month
             "2023-12-32",  # invalid day
-            "23-12-25",    # wrong format
+            "23-12-25",  # wrong format
             "2023/12/25",  # wrong separator
             "not-a-date",
             "",
-            "2024-02-30"   # invalid date for February
+            "2024-02-30",  # invalid date for February
         ]
 
         for date_val in invalid_dates:
-            config.set({'value': date_val})
+            config.set({"value": date_val})
             with pytest.raises(
                 confuse.ConfigValueError, match="must be a valid date"
             ):
-                config.get({'value': template})
+                config.get({"value": template})
 
     def test_date_time_format_validation(self):
         """Test date-time format validation."""
         schema = {"type": "string", "format": "date-time"}
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
+        config = confuse.Configuration("test")
 
         # Valid date-times
         valid_datetimes = [
             "2023-12-25T10:30:00Z",
             "2023-12-25T10:30:00.123Z",
             "2023-12-25T10:30:00+00:00",
-            "2023-12-25T10:30:00.123+05:30"
+            "2023-12-25T10:30:00.123+05:30",
         ]
 
         for dt in valid_datetimes:
-            config.set({'value': dt})
-            result = config.get({'value': template})['value']
+            config.set({"value": dt})
+            result = config.get({"value": template})["value"]
             assert result == dt
 
         # Invalid date-times
@@ -629,94 +626,94 @@ class TestFormatValidation:
             "2023-12-25T10:70:00Z",  # invalid minute
             "not-a-datetime",
             "2023-12-25T10:30:00",  # missing timezone
-            ""
+            "",
         ]
 
         for dt in invalid_datetimes:
-            config.set({'value': dt})
+            config.set({"value": dt})
             with pytest.raises(
                 confuse.ConfigValueError, match="must be a valid date-time"
             ):
-                config.get({'value': template})
+                config.get({"value": template})
 
     def test_uri_format_validation(self):
         """Test URI format validation."""
         schema = {"type": "string", "format": "uri"}
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
+        config = confuse.Configuration("test")
 
         # Valid URIs
         valid_uris = [
             "https://example.com",
             "http://example.com/path",
             "ftp://files.example.com",
-            "https://example.com:8080/path?query=1#section"
+            "https://example.com:8080/path?query=1#section",
         ]
 
         for uri in valid_uris:
-            config.set({'value': uri})
-            result = config.get({'value': template})['value']
+            config.set({"value": uri})
+            result = config.get({"value": template})["value"]
             assert result == uri
 
         # Invalid URIs
         invalid_uris = [
             "not-a-uri",
             "example.com",  # missing scheme
-            "http://",      # missing netloc
+            "http://",  # missing netloc
             "",
-            "://example.com"  # missing scheme
+            "://example.com",  # missing scheme
         ]
 
         for uri in invalid_uris:
-            config.set({'value': uri})
+            config.set({"value": uri})
             with pytest.raises(
                 confuse.ConfigValueError, match="must be a valid uri"
             ):
-                config.get({'value': template})
+                config.get({"value": template})
 
     def test_uuid_format_validation(self):
         """Test UUID format validation."""
         schema = {"type": "string", "format": "uuid"}
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
+        config = confuse.Configuration("test")
 
         # Valid UUIDs
         valid_uuids = [
             "123e4567-e89b-12d3-a456-426614174000",
             "00000000-0000-0000-0000-000000000000",
-            "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
+            "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
         ]
 
         for uuid_val in valid_uuids:
-            config.set({'value': uuid_val})
-            result = config.get({'value': template})['value']
+            config.set({"value": uuid_val})
+            result = config.get({"value": template})["value"]
             assert result == uuid_val
 
         # Invalid UUIDs
         invalid_uuids = [
-            "123e4567-e89b-12d3-a456-42661417400",   # too short
+            "123e4567-e89b-12d3-a456-42661417400",  # too short
             "123e4567-e89b-12d3-a456-4266141740000",  # too long
-            "123e4567-e89b-12d3-a456",               # missing parts
+            "123e4567-e89b-12d3-a456",  # missing parts
             "not-a-uuid",
             "123g4567-e89b-12d3-a456-426614174000",  # invalid character
-            ""
+            "",
         ]
 
         for uuid_val in invalid_uuids:
-            config.set({'value': uuid_val})
+            config.set({"value": uuid_val})
             with pytest.raises(
                 confuse.ConfigValueError, match="must be a valid uuid"
             ):
-                config.get({'value': template})
+                config.get({"value": template})
 
     def test_ipv4_format_validation(self):
         """Test IPv4 format validation."""
         schema = {"type": "string", "format": "ipv4"}
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
+        config = confuse.Configuration("test")
 
         # Valid IPv4 addresses
         valid_ipv4s = [
@@ -724,49 +721,49 @@ class TestFormatValidation:
             "10.0.0.1",
             "127.0.0.1",
             "255.255.255.255",
-            "0.0.0.0"
+            "0.0.0.0",
         ]
 
         for ip in valid_ipv4s:
-            config.set({'value': ip})
-            result = config.get({'value': template})['value']
+            config.set({"value": ip})
+            result = config.get({"value": template})["value"]
             assert result == ip
 
         # Invalid IPv4 addresses
         invalid_ipv4s = [
-            "256.1.1.1",      # out of range
-            "192.168.1",      # incomplete
+            "256.1.1.1",  # out of range
+            "192.168.1",  # incomplete
             "192.168.1.1.1",  # too many parts
             "not-an-ip",
             "",
-            "192.168.01.1"    # leading zeros
+            "192.168.01.1",  # leading zeros
         ]
 
         for ip in invalid_ipv4s:
-            config.set({'value': ip})
+            config.set({"value": ip})
             with pytest.raises(
                 confuse.ConfigValueError, match="must be a valid ipv4"
             ):
-                config.get({'value': template})
+                config.get({"value": template})
 
     def test_ipv6_format_validation(self):
         """Test IPv6 format validation."""
         schema = {"type": "string", "format": "ipv6"}
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
+        config = confuse.Configuration("test")
 
         # Valid IPv6 addresses
         valid_ipv6s = [
             "2001:db8::1",
             "::1",
             "::ffff:192.0.2.1",
-            "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+            "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
         ]
 
         for ip in valid_ipv6s:
-            config.set({'value': ip})
-            result = config.get({'value': template})['value']
+            config.set({"value": ip})
+            result = config.get({"value": template})["value"]
             assert result == ip
 
         # Invalid IPv6 addresses
@@ -774,15 +771,15 @@ class TestFormatValidation:
             "2001:db8::1::1",  # double ::
             "not-an-ipv6",
             "",
-            "192.168.1.1"      # IPv4 address
+            "192.168.1.1",  # IPv4 address
         ]
 
         for ip in invalid_ipv6s:
-            config.set({'value': ip})
+            config.set({"value": ip})
             with pytest.raises(
                 confuse.ConfigValueError, match="must be a valid ipv6"
             ):
-                config.get({'value': template})
+                config.get({"value": template})
 
 
 class TestNumericConstraints:
@@ -875,7 +872,7 @@ class TestConditionalSchemas:
         schema = {
             "if": {"type": "string"},
             "then": {"minLength": 2},
-            "else": {"type": "integer", "minimum": 0}
+            "else": {"type": "integer", "minimum": 0},
         }
         template = to_template(schema)
         assert isinstance(template, Conditional)
@@ -925,7 +922,7 @@ class TestConditionalSchemas:
         """Test if/else when 'if' condition fails (else applied)."""
         schema = {
             "if": {"type": "string"},
-            "else": {"type": "integer", "minimum": 0}
+            "else": {"type": "integer", "minimum": 0},
         }
         template = to_template(schema)
 
@@ -948,7 +945,7 @@ class TestConditionalSchemas:
         schema = {
             "if": {"type": "string"},
             "then": {"minLength": 3},
-            "else": {"type": "integer"}
+            "else": {"type": "integer"},
         }
         template = to_template(schema)
 
@@ -971,7 +968,7 @@ class TestConditionalSchemas:
         schema = {
             "if": {"type": "string"},
             "then": {"minLength": 3},
-            "else": {"type": "integer", "minimum": 0}
+            "else": {"type": "integer", "minimum": 0},
         }
         template = to_template(schema)
 
@@ -997,10 +994,10 @@ class TestConditionalSchemas:
                 "properties": {
                     "name": {
                         "if": {"type": "string"},
-                        "then": {"minLength": 1}
+                        "then": {"minLength": 1},
                     }
                 }
-            }
+            },
         }
         template = to_template(schema)
 
@@ -1271,19 +1268,19 @@ class TestReferenceSchemas:
                 "admin": {"$ref": "#/definitions/User"},
                 "team": {
                     "type": "array",
-                    "items": {"$ref": "#/definitions/User"}
-                }
+                    "items": {"$ref": "#/definitions/User"},
+                },
             },
             "definitions": {
                 "User": {
                     "type": "object",
                     "properties": {
                         "name": {"type": "string"},
-                        "age": {"type": "integer", "minimum": 0}
+                        "age": {"type": "integer", "minimum": 0},
                     },
-                    "required": ["name"]
+                    "required": ["name"],
                 }
-            }
+            },
         }
 
         template = to_template(schema)
@@ -1291,15 +1288,17 @@ class TestReferenceSchemas:
         import confuse
 
         config = confuse.Configuration("test", read=False)
-        config.set({
-            "user1": {"name": "Alice", "age": 25},
-            "user2": {"name": "Bob", "age": 30},
-            "admin": {"name": "Charlie"},
-            "team": [
-                {"name": "Dave", "age": 35},
-                {"name": "Eve", "age": 28}
-            ]
-        })
+        config.set(
+            {
+                "user1": {"name": "Alice", "age": 25},
+                "user2": {"name": "Bob", "age": 30},
+                "admin": {"name": "Charlie"},
+                "team": [
+                    {"name": "Dave", "age": 35},
+                    {"name": "Eve", "age": 28},
+                ],
+            }
+        )
 
         result = config.get(template)
         assert result["user1"]["name"] == "Alice"
@@ -1314,9 +1313,7 @@ class TestReferenceSchemas:
         """Test multiple references with nested structures."""
         schema = {
             "type": "object",
-            "properties": {
-                "department": {"$ref": "#/definitions/Department"}
-            },
+            "properties": {"department": {"$ref": "#/definitions/Department"}},
             "definitions": {
                 "Department": {
                     "type": "object",
@@ -1325,31 +1322,31 @@ class TestReferenceSchemas:
                         "manager": {"$ref": "#/definitions/Employee"},
                         "employees": {
                             "type": "array",
-                            "items": {"$ref": "#/definitions/Employee"}
+                            "items": {"$ref": "#/definitions/Employee"},
                         },
-                        "address": {"$ref": "#/definitions/Address"}
+                        "address": {"$ref": "#/definitions/Address"},
                     },
-                    "required": ["name"]
+                    "required": ["name"],
                 },
                 "Employee": {
                     "type": "object",
                     "properties": {
                         "name": {"type": "string"},
                         "title": {"type": "string"},
-                        "address": {"$ref": "#/definitions/Address"}
+                        "address": {"$ref": "#/definitions/Address"},
                     },
-                    "required": ["name"]
+                    "required": ["name"],
                 },
                 "Address": {
                     "type": "object",
                     "properties": {
                         "street": {"type": "string"},
                         "city": {"type": "string"},
-                        "zip": {"type": "string"}
+                        "zip": {"type": "string"},
                     },
-                    "required": ["street", "city"]
-                }
-            }
+                    "required": ["street", "city"],
+                },
+            },
         }
 
         template = to_template(schema)
@@ -1357,41 +1354,44 @@ class TestReferenceSchemas:
         import confuse
 
         config = confuse.Configuration("test", read=False)
-        config.set({
-            "department": {
-                "name": "Engineering",
-                "manager": {
-                    "name": "Alice",
-                    "title": "Director",
-                    "address": {
-                        "street": "123 Main St",
-                        "city": "Tech City",
-                        "zip": "12345"
-                    }
-                },
-                "employees": [
-                    {
-                        "name": "Bob",
-                        "title": "Senior Engineer",
+        config.set(
+            {
+                "department": {
+                    "name": "Engineering",
+                    "manager": {
+                        "name": "Alice",
+                        "title": "Director",
                         "address": {
-                            "street": "456 Oak Ave",
-                            "city": "Tech City"
+                            "street": "123 Main St",
+                            "city": "Tech City",
+                            "zip": "12345",
+                        },
+                    },
+                    "employees": [
+                        {
+                            "name": "Bob",
+                            "title": "Senior Engineer",
+                            "address": {
+                                "street": "456 Oak Ave",
+                                "city": "Tech City",
+                            },
                         }
-                    }
-                ],
-                "address": {
-                    "street": "789 Corporate Blvd",
-                    "city": "Business District"
+                    ],
+                    "address": {
+                        "street": "789 Corporate Blvd",
+                        "city": "Business District",
+                    },
                 }
             }
-        })
+        )
 
         result = config.get(template)
         assert result["department"]["name"] == "Engineering"
         assert result["department"]["manager"]["name"] == "Alice"
         assert result["department"]["employees"][0]["name"] == "Bob"
-        assert result["department"]["address"]["street"] == \
-            "789 Corporate Blvd"
+        assert (
+            result["department"]["address"]["street"] == "789 Corporate Blvd"
+        )
 
     def test_ref_caching_efficiency(self):
         """Test that resolved references are cached for efficiency."""
@@ -1406,9 +1406,9 @@ class TestReferenceSchemas:
                         "properties": {
                             "primary": {"$ref": "#/definitions/ComplexType"},
                             "secondary": {"$ref": "#/definitions/ComplexType"},
-                            "backup": {"$ref": "#/definitions/ComplexType"}
-                        }
-                    }
+                            "backup": {"$ref": "#/definitions/ComplexType"},
+                        },
+                    },
                 }
             },
             "definitions": {
@@ -1420,22 +1420,19 @@ class TestReferenceSchemas:
                             "type": "object",
                             "properties": {
                                 "value": {"type": "number"},
-                                "metadata": {"$ref": "#/definitions/Metadata"}
-                            }
-                        }
-                    }
+                                "metadata": {"$ref": "#/definitions/Metadata"},
+                            },
+                        },
+                    },
                 },
                 "Metadata": {
                     "type": "object",
                     "properties": {
-                        "tags": {
-                            "type": "array",
-                            "items": {"type": "string"}
-                        },
-                        "timestamp": {"type": "string"}
-                    }
-                }
-            }
+                        "tags": {"type": "array", "items": {"type": "string"}},
+                        "timestamp": {"type": "string"},
+                    },
+                },
+            },
         }
 
         # Should not raise any errors and should complete efficiently
@@ -1444,27 +1441,29 @@ class TestReferenceSchemas:
         import confuse
 
         config = confuse.Configuration("test", read=False)
-        config.set({
-            "items": [
-                {
-                    "primary": {
-                        "id": "item1",
-                        "nested": {
-                            "value": 42.0,
-                            "metadata": {
-                                "tags": ["tag1", "tag2"],
-                                "timestamp": "2023-01-01"
-                            }
-                        }
-                    },
-                    "secondary": {
-                        "id": "item2",
-                        "nested": {"value": 24.0}
-                    },
-                    "backup": {"id": "item3"}
-                }
-            ]
-        })
+        config.set(
+            {
+                "items": [
+                    {
+                        "primary": {
+                            "id": "item1",
+                            "nested": {
+                                "value": 42.0,
+                                "metadata": {
+                                    "tags": ["tag1", "tag2"],
+                                    "timestamp": "2023-01-01",
+                                },
+                            },
+                        },
+                        "secondary": {
+                            "id": "item2",
+                            "nested": {"value": 24.0},
+                        },
+                        "backup": {"id": "item3"},
+                    }
+                ]
+            }
+        )
 
         result = config.get(template)
         assert len(result["items"]) == 1
@@ -1476,10 +1475,8 @@ class TestReferenceSchemas:
 
         # Direct self-reference
         schema1 = {
-            "definitions": {
-                "SelfRef": {"$ref": "#/definitions/SelfRef"}
-            },
-            "$ref": "#/definitions/SelfRef"
+            "definitions": {"SelfRef": {"$ref": "#/definitions/SelfRef"}},
+            "$ref": "#/definitions/SelfRef",
         }
 
         with pytest.raises(ValueError, match="Circular reference detected"):
@@ -1490,18 +1487,14 @@ class TestReferenceSchemas:
             "definitions": {
                 "TypeA": {
                     "type": "object",
-                    "properties": {
-                        "b": {"$ref": "#/definitions/TypeB"}
-                    }
+                    "properties": {"b": {"$ref": "#/definitions/TypeB"}},
                 },
                 "TypeB": {
                     "type": "object",
-                    "properties": {
-                        "a": {"$ref": "#/definitions/TypeA"}
-                    }
-                }
+                    "properties": {"a": {"$ref": "#/definitions/TypeA"}},
+                },
             },
-            "$ref": "#/definitions/TypeA"
+            "$ref": "#/definitions/TypeA",
         }
 
         with pytest.raises(ValueError, match="Circular reference detected"):
@@ -1512,24 +1505,18 @@ class TestReferenceSchemas:
             "definitions": {
                 "TypeA": {
                     "type": "object",
-                    "properties": {
-                        "b": {"$ref": "#/definitions/TypeB"}
-                    }
+                    "properties": {"b": {"$ref": "#/definitions/TypeB"}},
                 },
                 "TypeB": {
                     "type": "object",
-                    "properties": {
-                        "c": {"$ref": "#/definitions/TypeC"}
-                    }
+                    "properties": {"c": {"$ref": "#/definitions/TypeC"}},
                 },
                 "TypeC": {
                     "type": "object",
-                    "properties": {
-                        "a": {"$ref": "#/definitions/TypeA"}
-                    }
-                }
+                    "properties": {"a": {"$ref": "#/definitions/TypeA"}},
+                },
             },
-            "$ref": "#/definitions/TypeA"
+            "$ref": "#/definitions/TypeA",
         }
 
         with pytest.raises(ValueError, match="Circular reference detected"):
@@ -1545,15 +1532,13 @@ class TestReferenceSchemas:
                         "value": {"type": "string"},
                         "children": {
                             "type": "array",
-                            "items": {"$ref": "#/definitions/TreeNode"}
-                        }
-                    }
+                            "items": {"$ref": "#/definitions/TreeNode"},
+                        },
+                    },
                 }
             },
             "type": "object",
-            "properties": {
-                "root": {"$ref": "#/definitions/TreeNode"}
-            }
+            "properties": {"root": {"$ref": "#/definitions/TreeNode"}},
         }
 
         with pytest.raises(ValueError, match="Circular reference detected"):
@@ -1565,23 +1550,21 @@ class TestReferenceSchemas:
             "definitions": {
                 "ValidType": {
                     "type": "object",
-                    "properties": {
-                        "name": {"type": "string"}
-                    }
+                    "properties": {"name": {"type": "string"}},
                 },
                 "CircularType": {
                     "type": "object",
                     "properties": {
                         "valid": {"$ref": "#/definitions/ValidType"},
-                        "self": {"$ref": "#/definitions/CircularType"}
-                    }
-                }
+                        "self": {"$ref": "#/definitions/CircularType"},
+                    },
+                },
             },
             "type": "object",
             "properties": {
                 "good": {"$ref": "#/definitions/ValidType"},
-                "bad": {"$ref": "#/definitions/CircularType"}
-            }
+                "bad": {"$ref": "#/definitions/CircularType"},
+            },
         }
 
         with pytest.raises(ValueError, match="Circular reference detected"):
@@ -1595,7 +1578,7 @@ class TestReferenceSchemas:
                 "data": {
                     "anyOf": [
                         {"$ref": "#/definitions/StringData"},
-                        {"$ref": "#/definitions/NumberData"}
+                        {"$ref": "#/definitions/NumberData"},
                     ]
                 },
                 "combined": {
@@ -1603,37 +1586,31 @@ class TestReferenceSchemas:
                         {"$ref": "#/definitions/BaseData"},
                         {
                             "type": "object",
-                            "properties": {
-                                "extra": {"type": "string"}
-                            }
-                        }
+                            "properties": {"extra": {"type": "string"}},
+                        },
                     ]
-                }
+                },
             },
             "definitions": {
                 "StringData": {
                     "type": "object",
-                    "properties": {
-                        "value": {"type": "string"}
-                    },
-                    "required": ["value"]
+                    "properties": {"value": {"type": "string"}},
+                    "required": ["value"],
                 },
                 "NumberData": {
                     "type": "object",
-                    "properties": {
-                        "value": {"type": "number"}
-                    },
-                    "required": ["value"]
+                    "properties": {"value": {"type": "number"}},
+                    "required": ["value"],
                 },
                 "BaseData": {
                     "type": "object",
                     "properties": {
                         "id": {"type": "string"},
-                        "timestamp": {"type": "string"}
+                        "timestamp": {"type": "string"},
                     },
-                    "required": ["id"]
-                }
-            }
+                    "required": ["id"],
+                },
+            },
         }
 
         template = to_template(schema)
@@ -1643,16 +1620,16 @@ class TestReferenceSchemas:
         config = confuse.Configuration("test", read=False)
 
         # Test anyOf with string data
-        config.set({
-            "data": {
-                "value": "hello"
-            },
-            "combined": {
-                "id": "123",
-                "timestamp": "2023-01-01",
-                "extra": "additional"
+        config.set(
+            {
+                "data": {"value": "hello"},
+                "combined": {
+                    "id": "123",
+                    "timestamp": "2023-01-01",
+                    "extra": "additional",
+                },
             }
-        })
+        )
 
         result = config.get(template)
         assert result["data"]["value"] == "hello"
@@ -1660,14 +1637,7 @@ class TestReferenceSchemas:
         assert result["combined"]["extra"] == "additional"
 
         # Test anyOf with number data
-        config.set({
-            "data": {
-                "value": 42
-            },
-            "combined": {
-                "id": "456"
-            }
-        })
+        config.set({"data": {"value": 42}, "combined": {"id": "456"}})
 
         result = config.get(template)
         assert result["data"]["value"] == 42
@@ -2537,47 +2507,48 @@ class TestSchemaConsistency:
                 "credit_card": {"type": "string"},
                 "billing_address": {"type": "string"},
                 "phone": {"type": "string"},
-                "cvv": {"type": "string"}
+                "cvv": {"type": "string"},
             },
-            "dependentRequired": {
-                "credit_card": ["billing_address", "cvv"]
-            }
+            "dependentRequired": {"credit_card": ["billing_address", "cvv"]},
         }
 
         test_cases = [
             # Valid cases
+            ({"phone": "555-0123"}, True, "no trigger property present"),
             (
-                {"phone": "555-0123"},
+                {
+                    "credit_card": "1234",
+                    "billing_address": "123 Main",
+                    "cvv": "123",
+                },
                 True,
-                "no trigger property present"
+                "trigger property with all required dependencies",
             ),
             (
-                {"credit_card": "1234", "billing_address": "123 Main",
-                 "cvv": "123"},
+                {
+                    "credit_card": "1234",
+                    "billing_address": "123 Main",
+                    "cvv": "123",
+                    "phone": "555-0123",
+                },
                 True,
-                "trigger property with all required dependencies"
-            ),
-            (
-                {"credit_card": "1234", "billing_address": "123 Main",
-                 "cvv": "123", "phone": "555-0123"},
-                True,
-                "trigger property with dependencies and extra properties"
+                "trigger property with dependencies and extra properties",
             ),
             # Invalid cases
             (
                 {"credit_card": "1234"},
                 False,
-                "trigger property without any dependencies"
+                "trigger property without any dependencies",
             ),
             (
                 {"credit_card": "1234", "billing_address": "123 Main"},
                 False,
-                "trigger property missing one dependency"
+                "trigger property missing one dependency",
             ),
             (
                 {"credit_card": "1234", "cvv": "123"},
                 False,
-                "trigger property missing different dependency"
+                "trigger property missing different dependency",
             ),
         ]
 
@@ -2591,47 +2562,47 @@ class TestSchemaConsistency:
                 "payment_type": {"type": "string"},
                 "account_number": {"type": "string"},
                 "routing_number": {"type": "string"},
-                "name": {"type": "string"}
+                "name": {"type": "string"},
             },
             "dependentSchemas": {
                 "payment_type": {
                     "required": ["account_number"],
-                    "properties": {
-                        "routing_number": {"minLength": 9}
-                    }
+                    "properties": {"routing_number": {"minLength": 9}},
                 }
-            }
+            },
         }
 
         test_cases = [
             # Valid cases
-            (
-                {"name": "John Doe"},
-                True,
-                "no trigger property present"
-            ),
+            ({"name": "John Doe"}, True, "no trigger property present"),
             (
                 {"payment_type": "bank", "account_number": "123456789"},
                 True,
-                "trigger property with required field"
+                "trigger property with required field",
             ),
             (
-                {"payment_type": "bank", "account_number": "123",
-                 "routing_number": "123456789"},
+                {
+                    "payment_type": "bank",
+                    "account_number": "123",
+                    "routing_number": "123456789",
+                },
                 True,
-                "trigger property with all constraints satisfied"
+                "trigger property with all constraints satisfied",
             ),
             # Invalid cases
             (
                 {"payment_type": "bank"},
                 False,
-                "trigger property without required field from dependent schema"
+                "trigger property without required field from dep schema",
             ),
             (
-                {"payment_type": "bank", "account_number": "123",
-                 "routing_number": "123"},
+                {
+                    "payment_type": "bank",
+                    "account_number": "123",
+                    "routing_number": "123",
+                },
                 False,
-                "trigger property with constraint violation"
+                "trigger property with constraint violation",
             ),
         ]
 
@@ -2646,12 +2617,12 @@ class TestSchemaConsistency:
                 "billing_address": {"type": "string"},
                 "bank_account": {"type": "string"},
                 "routing_number": {"type": "string"},
-                "phone": {"type": "string"}
+                "phone": {"type": "string"},
             },
             "dependentRequired": {
                 "credit_card": ["billing_address"],
-                "bank_account": ["routing_number"]
-            }
+                "bank_account": ["routing_number"],
+            },
         }
 
         test_cases = [
@@ -2660,36 +2631,43 @@ class TestSchemaConsistency:
             (
                 {"credit_card": "1234", "billing_address": "123 Main"},
                 True,
-                "first dependency satisfied"
+                "first dependency satisfied",
             ),
             (
                 {"bank_account": "987654", "routing_number": "123456"},
                 True,
-                "second dependency satisfied"
+                "second dependency satisfied",
             ),
             (
-                {"credit_card": "1234", "billing_address": "123 Main",
-                 "bank_account": "987654", "routing_number": "123456"},
+                {
+                    "credit_card": "1234",
+                    "billing_address": "123 Main",
+                    "bank_account": "987654",
+                    "routing_number": "123456",
+                },
                 True,
-                "both dependencies satisfied"
+                "both dependencies satisfied",
             ),
             # Invalid cases
             ({"credit_card": "1234"}, False, "first dependency unsatisfied"),
             (
                 {"bank_account": "987654"},
                 False,
-                "second dependency unsatisfied"
+                "second dependency unsatisfied",
             ),
             (
                 {"credit_card": "1234", "bank_account": "987654"},
                 False,
-                "both dependencies unsatisfied"
+                "both dependencies unsatisfied",
             ),
             (
-                {"credit_card": "1234", "billing_address": "123 Main",
-                 "bank_account": "987654"},
+                {
+                    "credit_card": "1234",
+                    "billing_address": "123 Main",
+                    "bank_account": "987654",
+                },
                 False,
-                "first satisfied, second unsatisfied"
+                "first satisfied, second unsatisfied",
             ),
         ]
 
@@ -2699,9 +2677,7 @@ class TestSchemaConsistency:
         """Test propertyNames validation consistency."""
         schema = {
             "type": "object",
-            "propertyNames": {
-                "pattern": "^[a-z_][a-z0-9_]*$"
-            }
+            "propertyNames": {"pattern": "^[a-z_][a-z0-9_]*$"},
         }
 
         test_cases = [
@@ -2712,7 +2688,8 @@ class TestSchemaConsistency:
             ({"name123": "value"}, True, "name with numbers"),
             (
                 {"valid_name": "value", "another_prop": 42},
-                True, "multiple valid"
+                True,
+                "multiple valid",
             ),
             # Invalid cases
             ({"InvalidName": "value"}, False, "camelCase not allowed"),
@@ -2728,9 +2705,7 @@ class TestSchemaConsistency:
         """Test propertyNames with enum constraint consistency."""
         schema = {
             "type": "object",
-            "propertyNames": {
-                "enum": ["name", "value", "description"]
-            }
+            "propertyNames": {"enum": ["name", "value", "description"]},
         }
 
         test_cases = [
@@ -2738,13 +2713,17 @@ class TestSchemaConsistency:
             ({}, True, "empty object"),
             ({"name": "test"}, True, "single valid property"),
             ({"name": "test", "value": 42}, True, "two valid properties"),
-            ({"name": "test", "value": 42, "description": "desc"},
-             True, "all valid properties"),
+            (
+                {"name": "test", "value": 42, "description": "desc"},
+                True,
+                "all valid properties",
+            ),
             # Invalid cases
             ({"invalid": "value"}, False, "property not in enum"),
             (
                 {"name": "test", "invalid": "value"},
-                False, "one valid, one invalid"
+                False,
+                "one valid, one invalid",
             ),
         ]
 
@@ -2756,28 +2735,119 @@ class TestSchemaConsistency:
             "type": "object",
             "properties": {
                 "config_name": {"type": "string"},
-                "config_value": {"type": "integer"}
+                "config_value": {"type": "integer"},
             },
             "additionalProperties": True,
-            "propertyNames": {
-                "pattern": "^config_[a-z]+$"
-            }
+            "propertyNames": {"pattern": "^config_[a-z]+$"},
         }
 
         test_cases = [
             # Valid cases
             ({"config_name": "test"}, True, "valid property matching pattern"),
-            ({"config_name": "test", "config_value": 42},
-             True, "both properties valid"),
-            ({"config_name": "test", "config_extra": "additional"},
-             True, "additional property matches pattern"),
+            (
+                {"config_name": "test", "config_value": 42},
+                True,
+                "both properties valid",
+            ),
+            (
+                {"config_name": "test", "config_extra": "additional"},
+                True,
+                "additional property matches pattern",
+            ),
             # Invalid cases
             (
                 {"invalid_name": "value"},
-                False, "property doesn't match pattern"
+                False,
+                "property doesn't match pattern",
             ),
-            ({"config_name": "test", "invalid_name": "value"},
-             False, "one valid, one invalid property name"),
+            (
+                {"config_name": "test", "invalid_name": "value"},
+                False,
+                "one valid, one invalid property name",
+            ),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_prefix_items_consistency(self):
+        """Test prefixItems (tuple) validation consistency."""
+        schema = {
+            "type": "array",
+            "prefixItems": [
+                {"type": "number"},
+                {"type": "string"},
+                {"enum": ["red", "green", "blue"]},
+            ],
+        }
+
+        test_cases = [
+            # Valid cases
+            ([], True, "empty array"),
+            ([42], True, "partial tuple - first item"),
+            ([42, "hello"], True, "partial tuple - two items"),
+            ([42, "hello", "red"], True, "complete tuple"),
+            (
+                [3.14, "world", "green"],
+                True,
+                "complete tuple with different values",
+            ),
+            # Invalid cases
+            (["not a number"], False, "wrong type in first position"),
+            ([42, 123], False, "wrong type in second position"),
+            ([42, "hello", "purple"], False, "invalid enum value"),
+            (
+                [42, "hello", "red", "extra"],
+                True,
+                "additional items allowed by default",
+            ),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_prefix_items_with_additional_items_consistency(self):
+        """Test prefixItems with additional items schema consistency."""
+        schema = {
+            "type": "array",
+            "prefixItems": [{"type": "string"}, {"type": "number"}],
+            "items": {"type": "boolean"},
+        }
+
+        test_cases = [
+            # Valid cases
+            (["hello", 42], True, "exact prefix"),
+            (["hello", 42, True], True, "prefix plus one valid additional"),
+            (
+                ["hello", 42, True, False, True],
+                True,
+                "prefix plus multiple additional",
+            ),
+            # Invalid cases
+            (["hello", 42, "invalid"], False, "additional item wrong type"),
+            (
+                ["hello", 42, True, "invalid"],
+                False,
+                "mix of valid/invalid additional",
+            ),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_prefix_items_no_additional_items_consistency(self):
+        """Test prefixItems with items: false consistency."""
+        schema = {
+            "type": "array",
+            "prefixItems": [{"type": "string"}, {"type": "number"}],
+            "items": False,
+        }
+
+        test_cases = [
+            # Valid cases
+            ([], True, "empty array"),
+            (["hello"], True, "partial prefix"),
+            (["hello", 42], True, "exact prefix"),
+            # Invalid cases
+            (["hello", 42, "extra"], False, "additional items not allowed"),
+            (["hello", 42, True, False], False, "multiple additional items"),
         ]
 
         self._test_consistency(schema, test_cases)
@@ -3309,21 +3379,21 @@ class TestPropertyDependencies:
             "properties": {
                 "credit_card": {"type": "string"},
                 "billing_address": {"type": "string"},
-                "phone": {"type": "string"}
+                "phone": {"type": "string"},
             },
-            "dependentRequired": {
-                "credit_card": ["billing_address"]
-            }
+            "dependentRequired": {"credit_card": ["billing_address"]},
         }
         template = to_template(schema)
 
         # Should succeed when dependent property is present
-        config = confuse.Configuration('test')
-        config.set({
-            "credit_card": "1234-5678-9012-3456",
-            "billing_address": "123 Main St",
-            "phone": "555-0123"
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "credit_card": "1234-5678-9012-3456",
+                "billing_address": "123 Main St",
+                "phone": "555-0123",
+            }
+        )
         result = config.get(template)
         assert result["credit_card"] == "1234-5678-9012-3456"
         assert result["billing_address"] == "123 Main St"
@@ -3334,24 +3404,24 @@ class TestPropertyDependencies:
             "type": "object",
             "properties": {
                 "credit_card": {"type": "string"},
-                "billing_address": {"type": "string"}
+                "billing_address": {"type": "string"},
             },
-            "dependentRequired": {
-                "credit_card": ["billing_address"]
-            }
+            "dependentRequired": {"credit_card": ["billing_address"]},
         }
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
-        config.set({
-            "credit_card": "1234-5678-9012-3456"
-            # Missing billing_address
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "credit_card": "1234-5678-9012-3456"
+                # Missing billing_address
+            }
+        )
 
         with pytest.raises(
             confuse.ConfigError,
             match="property 'credit_card' requires properties: "
-                  "\\['billing_address'\\]"
+            "\\['billing_address'\\]",
         ):
             config.get(template)
 
@@ -3362,20 +3432,20 @@ class TestPropertyDependencies:
             "properties": {
                 "credit_card": {"type": "string"},
                 "billing_address": {"type": "string"},
-                "phone": {"type": "string"}
+                "phone": {"type": "string"},
             },
-            "dependentRequired": {
-                "credit_card": ["billing_address"]
-            }
+            "dependentRequired": {"credit_card": ["billing_address"]},
         }
         template = to_template(schema)
 
         # Should succeed when trigger property is not present
-        config = confuse.Configuration('test')
-        config.set({
-            "phone": "555-0123"
-            # No credit_card, so billing_address not required
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "phone": "555-0123"
+                # No credit_card, so billing_address not required
+            }
+        )
         result = config.get(template)
         assert result["phone"] == "555-0123"
         assert "credit_card" not in result
@@ -3389,25 +3459,27 @@ class TestPropertyDependencies:
                 "credit_card": {"type": "string"},
                 "billing_address": {"type": "string"},
                 "cvv": {"type": "string"},
-                "expiry": {"type": "string"}
+                "expiry": {"type": "string"},
             },
             "dependentRequired": {
                 "credit_card": ["billing_address", "cvv", "expiry"]
-            }
+            },
         }
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
-        config.set({
-            "credit_card": "1234-5678-9012-3456",
-            "billing_address": "123 Main St"
-            # Missing cvv and expiry
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "credit_card": "1234-5678-9012-3456",
+                "billing_address": "123 Main St",
+                # Missing cvv and expiry
+            }
+        )
 
         with pytest.raises(
             confuse.ConfigError,
             match="property 'credit_card' requires properties: "
-                  "\\['cvv', 'expiry'\\]"
+            "\\['cvv', 'expiry'\\]",
         ):
             config.get(template)
 
@@ -3418,25 +3490,25 @@ class TestPropertyDependencies:
             "properties": {
                 "account_type": {"type": "string"},
                 "account_number": {"type": "string"},
-                "routing_number": {"type": "string"}
+                "routing_number": {"type": "string"},
             },
             "dependentSchemas": {
                 "account_type": {
                     "required": ["account_number"],
-                    "properties": {
-                        "routing_number": {"minLength": 9}
-                    }
+                    "properties": {"routing_number": {"minLength": 9}},
                 }
-            }
+            },
         }
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
-        config.set({
-            "account_type": "checking",
-            "account_number": "123456789",
-            "routing_number": "987654321"
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "account_type": "checking",
+                "account_number": "123456789",
+                "routing_number": "987654321",
+            }
+        )
         result = config.get(template)
         assert result["account_type"] == "checking"
         assert result["account_number"] == "123456789"
@@ -3448,25 +3520,25 @@ class TestPropertyDependencies:
             "properties": {
                 "account_type": {"type": "string"},
                 "account_number": {"type": "string"},
-                "routing_number": {"type": "string"}
+                "routing_number": {"type": "string"},
             },
             "dependentSchemas": {
-                "account_type": {
-                    "required": ["account_number"]
-                }
-            }
+                "account_type": {"required": ["account_number"]}
+            },
         }
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
-        config.set({
-            "account_type": "checking"
-            # Missing account_number required by dependent schema
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "account_type": "checking"
+                # Missing account_number required by dependent schema
+            }
+        )
 
         with pytest.raises(
             confuse.ConfigError,
-            match="dependent schema for property 'account_type'"
+            match="dependent schema for property 'account_type'",
         ):
             config.get(template)
 
@@ -3477,22 +3549,22 @@ class TestPropertyDependencies:
             "properties": {
                 "account_type": {"type": "string"},
                 "account_number": {"type": "string"},
-                "name": {"type": "string"}
+                "name": {"type": "string"},
             },
             "dependentSchemas": {
-                "account_type": {
-                    "required": ["account_number"]
-                }
-            }
+                "account_type": {"required": ["account_number"]}
+            },
         }
         template = to_template(schema)
 
         # Should succeed when trigger property is not present
-        config = confuse.Configuration('test')
-        config.set({
-            "name": "John Doe"
-            # No account_type, so dependent schema doesn't apply
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "name": "John Doe"
+                # No account_type, so dependent schema doesn't apply
+            }
+        )
         result = config.get(template)
         assert result["name"] == "John Doe"
 
@@ -3505,36 +3577,40 @@ class TestPropertyDependencies:
                 "credit_card": {"type": "string"},
                 "billing_address": {"type": "string"},
                 "bank_account": {"type": "string"},
-                "routing_number": {"type": "string"}
+                "routing_number": {"type": "string"},
             },
             "dependentRequired": {
                 "credit_card": ["billing_address"],
-                "bank_account": ["routing_number"]
-            }
+                "bank_account": ["routing_number"],
+            },
         }
         template = to_template(schema)
 
         # Should succeed with valid dependencies
-        config = confuse.Configuration('test')
-        config.set({
-            "payment_method": "card",
-            "credit_card": "1234-5678-9012-3456",
-            "billing_address": "123 Main St"
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "payment_method": "card",
+                "credit_card": "1234-5678-9012-3456",
+                "billing_address": "123 Main St",
+            }
+        )
         result = config.get(template)
         assert result["credit_card"] == "1234-5678-9012-3456"
 
         # Should fail with missing dependency
-        config.set({
-            "payment_method": "bank",
-            "bank_account": "987654321"
-            # Missing routing_number
-        })
+        config.set(
+            {
+                "payment_method": "bank",
+                "bank_account": "987654321",
+                # Missing routing_number
+            }
+        )
 
         with pytest.raises(
             confuse.ConfigError,
             match="property 'bank_account' requires properties: "
-                  "\\['routing_number'\\]"
+            "\\['routing_number'\\]",
         ):
             config.get(template)
 
@@ -3548,29 +3624,29 @@ class TestPropertyDependencies:
                     "properties": {
                         "type": {"type": "string"},
                         "card_number": {"type": "string"},
-                        "billing_zip": {"type": "string"}
+                        "billing_zip": {"type": "string"},
                     },
-                    "dependentRequired": {
-                        "card_number": ["billing_zip"]
-                    }
+                    "dependentRequired": {"card_number": ["billing_zip"]},
                 }
-            }
+            },
         }
         template = to_template(schema)
 
-        config = confuse.Configuration('test')
-        config.set({
-            "payment": {
-                "type": "credit_card",
-                "card_number": "1234-5678-9012-3456"
-                # Missing billing_zip
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "payment": {
+                    "type": "credit_card",
+                    "card_number": "1234-5678-9012-3456",
+                    # Missing billing_zip
+                }
             }
-        })
+        )
 
         with pytest.raises(
             confuse.ConfigError,
             match="property 'card_number' requires properties: "
-                  "\\['billing_zip'\\]"
+            "\\['billing_zip'\\]",
         ):
             config.get(template)
 
@@ -3582,28 +3658,30 @@ class TestPropertyNames:
         """Test basic propertyNames with pattern validation."""
         schema = {
             "type": "object",
-            "propertyNames": {
-                "pattern": "^[a-z_][a-z0-9_]*$"
-            }
+            "propertyNames": {"pattern": "^[a-z_][a-z0-9_]*$"},
         }
         template = to_template(schema)
 
         # Should succeed with valid property names
-        config = confuse.Configuration('test')
-        config.set({
-            "valid_name": "value1",
-            "another_name": "value2",
-            "name_123": "value3"
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "valid_name": "value1",
+                "another_name": "value2",
+                "name_123": "value3",
+            }
+        )
         result = config.get(template)
         assert result["valid_name"] == "value1"
 
         # Should fail with invalid property names
-        config.set({
-            "ValidName": "value1",  # Capital letters not allowed
-            "123invalid": "value2",  # Starting with number
-            "valid-name": "value3"  # Dashes not allowed
-        })
+        config.set(
+            {
+                "ValidName": "value1",  # Capital letters not allowed
+                "123invalid": "value2",  # Starting with number
+                "valid-name": "value3",  # Dashes not allowed
+            }
+        )
 
         with pytest.raises(
             confuse.ConfigError, match="property name.*invalid"
@@ -3614,27 +3692,20 @@ class TestPropertyNames:
         """Test propertyNames with string format validation."""
         schema = {
             "type": "object",
-            "propertyNames": {
-                "type": "string",
-                "format": "email"
-            }
+            "propertyNames": {"type": "string", "format": "email"},
         }
         template = to_template(schema)
 
         # Should succeed with valid email property names
-        config = confuse.Configuration('test')
-        config.set({
-            "user@example.com": "User 1",
-            "admin@test.org": "Admin User"
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {"user@example.com": "User 1", "admin@test.org": "Admin User"}
+        )
         result = config.get(template)
         assert result["user@example.com"] == "User 1"
 
         # Should fail with invalid email property names
-        config.set({
-            "invalid-email": "value1",
-            "user@": "value2"
-        })
+        config.set({"invalid-email": "value1", "user@": "value2"})
 
         with pytest.raises(
             confuse.ConfigError, match="property name.*invalid"
@@ -3648,18 +3719,20 @@ class TestPropertyNames:
             "propertyNames": {
                 "type": "string",
                 "minLength": 3,
-                "maxLength": 10
-            }
+                "maxLength": 10,
+            },
         }
         template = to_template(schema)
 
         # Should succeed with valid length property names
-        config = confuse.Configuration('test')
-        config.set({
-            "abc": "value1",
-            "property": "value2",
-            "name123456": "value3"  # exactly 10 chars
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "abc": "value1",
+                "property": "value2",
+                "name123456": "value3",  # exactly 10 chars
+            }
+        )
         result = config.get(template)
         assert result["abc"] == "value1"
 
@@ -3683,31 +3756,33 @@ class TestPropertyNames:
             "type": "object",
             "properties": {
                 "config_name": {"type": "string"},
-                "config_value": {"type": "integer"}
+                "config_value": {"type": "integer"},
             },
             "additionalProperties": True,
-            "propertyNames": {
-                "pattern": "^config_[a-z]+$"
-            }
+            "propertyNames": {"pattern": "^config_[a-z]+$"},
         }
         template = to_template(schema)
 
         # Should succeed when all properties match pattern
-        config = confuse.Configuration('test')
-        config.set({
-            "config_name": "test",
-            "config_value": 42,
-            "config_extra": "additional"
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {
+                "config_name": "test",
+                "config_value": 42,
+                "config_extra": "additional",
+            }
+        )
         result = config.get(template)
         assert result["config_name"] == "test"
         assert result["config_value"] == 42
 
         # Should fail when property doesn't match pattern
-        config.set({
-            "config_name": "test",
-            "invalid_name": "value"  # Doesn't match pattern
-        })
+        config.set(
+            {
+                "config_name": "test",
+                "invalid_name": "value",  # Doesn't match pattern
+            }
+        )
 
         with pytest.raises(
             confuse.ConfigError, match="property name.*invalid"
@@ -3718,29 +3793,25 @@ class TestPropertyNames:
         """Test propertyNames with additionalProperties: false."""
         schema = {
             "type": "object",
-            "properties": {
-                "allowed_prop": {"type": "string"}
-            },
+            "properties": {"allowed_prop": {"type": "string"}},
             "additionalProperties": False,
-            "propertyNames": {
-                "pattern": "^allowed_[a-z]+$"
-            }
+            "propertyNames": {"pattern": "^allowed_[a-z]+$"},
         }
         template = to_template(schema)
 
         # Should succeed with valid property that matches pattern
-        config = confuse.Configuration('test')
-        config.set({
-            "allowed_prop": "value"
-        })
+        config = confuse.Configuration("test")
+        config.set({"allowed_prop": "value"})
         result = config.get(template)
         assert result["allowed_prop"] == "value"
 
         # Should fail with additional property (even if it matches pattern)
-        config.set({
-            "allowed_prop": "value",
-            "allowed_extra": "additional"  # Additional property not allowed
-        })
+        config.set(
+            {
+                "allowed_prop": "value",
+                "allowed_extra": "additional",  # Additional prop not allowed
+            }
+        )
 
         with pytest.raises(
             confuse.ConfigError, match="additional properties not allowed"
@@ -3751,27 +3822,20 @@ class TestPropertyNames:
         """Test propertyNames with enum constraint."""
         schema = {
             "type": "object",
-            "propertyNames": {
-                "enum": ["name", "value", "description"]
-            }
+            "propertyNames": {"enum": ["name", "value", "description"]},
         }
         template = to_template(schema)
 
         # Should succeed with valid property names from enum
-        config = confuse.Configuration('test')
-        config.set({
-            "name": "test",
-            "value": 42,
-            "description": "A test object"
-        })
+        config = confuse.Configuration("test")
+        config.set(
+            {"name": "test", "value": 42, "description": "A test object"}
+        )
         result = config.get(template)
         assert result["name"] == "test"
 
         # Should fail with property name not in enum
-        config.set({
-            "name": "test",
-            "invalid": "not allowed"
-        })
+        config.set({"name": "test", "invalid": "not allowed"})
 
         with pytest.raises(
             confuse.ConfigError, match="property name.*invalid"
@@ -3780,29 +3844,125 @@ class TestPropertyNames:
 
     def test_property_names_without_type_inference(self):
         """Test schema with only propertyNames infers object type."""
-        schema = {
-            "propertyNames": {
-                "pattern": "^[a-z]+$"
-            }
-        }
+        schema = {"propertyNames": {"pattern": "^[a-z]+$"}}
         template = to_template(schema)
         assert isinstance(template, SchemaObject)
 
         # Should work correctly
-        config = confuse.Configuration('test')
-        config.set({
-            "valid": "value1",
-            "name": "value2"
-        })
+        config = confuse.Configuration("test")
+        config.set({"valid": "value1", "name": "value2"})
         result = config.get(template)
         assert result["valid"] == "value1"
 
         # Should fail with invalid property name
-        config.set({
-            "Invalid": "value1"  # Capital letter not allowed
-        })
+        config.set({"Invalid": "value1"})  # Capital letter not allowed
 
         with pytest.raises(
             confuse.ConfigError, match="property name.*invalid"
         ):
             config.get(template)
+
+
+class TestArrayValidation:
+    """Test prefixItems array validation feature."""
+
+    def test_basic_prefix_items_validation(self):
+        """Test basic prefixItems validation."""
+        schema = {
+            "type": "array",
+            "prefixItems": [
+                {"type": "number"},
+                {"type": "string"},
+                {"enum": ["red", "green", "blue"]},
+            ],
+        }
+        template = to_template(schema)
+        assert isinstance(template, Array)
+
+        # Should succeed with valid tuple
+        config = confuse.Configuration("test")
+        config.set({"data": [42, "hello", "red"]})
+        result = config.get({"data": template})["data"]
+        assert result == [42, "hello", "red"]
+
+        # Should succeed with partial tuple
+        config.set({"data": [42, "hello"]})
+        result = config.get({"data": template})["data"]
+        assert result == [42, "hello"]
+
+        # Should fail with wrong type in first position
+        config.set({"data": ["not a number", "hello", "red"]})
+        with pytest.raises(confuse.ConfigError, match="item at index 0"):
+            config.get({"data": template})
+
+        # Should fail with invalid enum value
+        config.set({"data": [42, "hello", "purple"]})
+        with pytest.raises(confuse.ConfigError, match="item at index 2"):
+            config.get({"data": template})
+
+    def test_prefix_items_with_additional_items_allowed(self):
+        """Test prefixItems with additional items allowed via items schema."""
+        schema = {
+            "type": "array",
+            "prefixItems": [{"type": "string"}, {"type": "number"}],
+            "items": {"type": "boolean"},
+        }
+        template = to_template(schema)
+
+        # Should succeed with exact prefix
+        config = confuse.Configuration("test")
+        config.set({"data": ["hello", 42]})
+        result = config.get({"data": template})["data"]
+        assert result == ["hello", 42]
+
+        # Should succeed with additional valid items
+        config.set({"data": ["hello", 42, True, False, True]})
+        result = config.get({"data": template})["data"]
+        assert result == ["hello", 42, True, False, True]
+
+        # Should fail with invalid additional item type
+        config.set({"data": ["hello", 42, True, "invalid"]})
+        with pytest.raises(
+            confuse.ConfigError, match="additional item at index 3"
+        ):
+            config.get({"data": template})
+
+    def test_prefix_items_with_additional_items_forbidden(self):
+        """Test prefixItems with additional items forbidden."""
+        schema = {
+            "type": "array",
+            "prefixItems": [{"type": "string"}, {"type": "number"}],
+            "items": False,
+        }
+        template = to_template(schema)
+
+        # Should succeed with exact prefix
+        config = confuse.Configuration("test")
+        config.set({"data": ["hello", 42]})
+        result = config.get({"data": template})["data"]
+        assert result == ["hello", 42]
+
+        # Should succeed with partial prefix
+        config.set({"data": ["hello"]})
+        result = config.get({"data": template})["data"]
+        assert result == ["hello"]
+
+        # Should fail with additional items
+        config.set({"data": ["hello", 42, "extra"]})
+        with pytest.raises(
+            confuse.ConfigError,
+            match="additional items not allowed beyond index 1",
+        ):
+            config.get({"data": template})
+
+    def test_prefix_items_without_type_inference(self):
+        """Test schema with only prefixItems infers array type."""
+        schema = {"prefixItems": [{"type": "string"}, {"type": "integer"}]}
+        template = to_template(schema)
+        assert isinstance(template, Array)
+
+        # Should work correctly
+        config = confuse.Configuration("test")
+        config.set({"data": ["hello", 42]})
+        result = config.get({"data": template})["data"]
+        assert result == ["hello", 42]
