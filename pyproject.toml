@@ -56,7 +56,7 @@ include = ["confuse_jsonschema*"]
 local_scheme = "no-local-version"
 
 [tool.black]
-line-length = 88
+line-length = 79
 target-version = ['py38']
 
 [tool.mypy]
