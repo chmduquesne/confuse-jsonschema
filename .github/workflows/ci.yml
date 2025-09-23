@@ -30,7 +30,7 @@ jobs:
 
     - name: Lint with flake8
       run: |
-        flake8 --builtins importlib .
+        flake8 .
 
     - name: Run tests
       run: |

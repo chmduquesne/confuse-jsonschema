@@ -396,12 +396,231 @@ class TestConditionalSchemas:
 class TestReferenceSchemas:
     """Test $ref schema handling."""
 
-    def test_ref_schema(self):
-        """Test $ref schema conversion."""
-        schema = {"$ref": "#/definitions/MyType"}
+    def test_basic_ref_resolution(self):
+        """Test basic $ref resolution with definitions."""
+        schema = {
+            "type": "object",
+            "properties": {"user": {"$ref": "#/definitions/User"}},
+            "definitions": {
+                "User": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "age": {"type": "integer"},
+                    },
+                    "required": ["name"],
+                }
+            },
+        }
+
         template = to_template(schema)
-        # For now, $ref just returns a generic template
-        assert isinstance(template, confuse.Template)
+
+        # Test with confuse validation
+        import confuse
+
+        config = confuse.Configuration("test", read=False)
+        config.set({"user": {"name": "Alice", "age": 30}})
+
+        result = config.get(template)
+        assert result["user"]["name"] == "Alice"
+        assert result["user"]["age"] == 30
+
+    def test_nested_ref_resolution(self):
+        """Test nested $ref resolution."""
+        schema = {
+            "type": "object",
+            "properties": {"company": {"$ref": "#/definitions/Company"}},
+            "definitions": {
+                "Company": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "owner": {"$ref": "#/definitions/User"},
+                    },
+                },
+                "User": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "email": {"type": "string"},
+                    },
+                },
+            },
+        }
+
+        template = to_template(schema)
+
+        # Test with confuse validation
+        import confuse
+
+        config = confuse.Configuration("test", read=False)
+        config.set(
+            {
+                "company": {
+                    "name": "Acme Corp",
+                    "owner": {"name": "John Doe", "email": "john@acme.com"},
+                }
+            }
+        )
+
+        result = config.get(template)
+        assert result["company"]["name"] == "Acme Corp"
+        assert result["company"]["owner"]["name"] == "John Doe"
+        assert result["company"]["owner"]["email"] == "john@acme.com"
+
+    def test_ref_with_array(self):
+        """Test $ref resolution in array items."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "users": {
+                    "type": "array",
+                    "items": {"$ref": "#/definitions/User"},
+                }
+            },
+            "definitions": {
+                "User": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "age": {"type": "integer"},
+                    },
+                }
+            },
+        }
+
+        template = to_template(schema)
+
+        import confuse
+
+        config = confuse.Configuration("test", read=False)
+        config.set(
+            {
+                "users": [
+                    {"name": "Alice", "age": 25},
+                    {"name": "Bob", "age": 30},
+                ]
+            }
+        )
+
+        result = config.get(template)
+        assert len(result["users"]) == 2
+        assert result["users"][0]["name"] == "Alice"
+        assert result["users"][1]["name"] == "Bob"
+
+    def test_ref_to_simple_type(self):
+        """Test $ref resolution to simple types."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "id": {"$ref": "#/definitions/ID"},
+                "name": {"$ref": "#/definitions/Name"},
+            },
+            "definitions": {
+                "ID": {"type": "integer", "minimum": 1},
+                "Name": {"type": "string", "minLength": 1},
+            },
+        }
+
+        template = to_template(schema)
+
+        import confuse
+
+        config = confuse.Configuration("test", read=False)
+        config.set({"id": 123, "name": "Test"})
+
+        result = config.get(template)
+        assert result["id"] == 123
+        assert result["name"] == "Test"
+
+    def test_circular_reference_detection(self):
+        """Test that circular references are detected and handled."""
+        schema = {
+            "definitions": {
+                "Node": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "child": {"$ref": "#/definitions/Node"},
+                    },
+                }
+            },
+            "$ref": "#/definitions/Node",
+        }
+
+        # Should raise an error due to circular reference
+        with pytest.raises(ValueError, match="Circular reference detected"):
+            to_template(schema)
+
+    def test_invalid_ref(self):
+        """Test handling of invalid $ref."""
+        schema = {
+            "type": "object",
+            "properties": {"user": {"$ref": "#/definitions/NonExistent"}},
+            "definitions": {},
+        }
+
+        with pytest.raises(ValueError, match="Failed to resolve \\$ref"):
+            to_template(schema)
+
+    def test_ref_with_additional_properties(self):
+        """Test $ref with additional properties (JSON Schema 2019-09+
+        behavior)."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "$ref": "#/definitions/User",
+                    "description": "A user object",
+                }
+            },
+            "definitions": {
+                "User": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}},
+                }
+            },
+        }
+
+        # Should work - additional properties are merged with resolved schema
+        template = to_template(schema)
+
+        import confuse
+
+        config = confuse.Configuration("test", read=False)
+        config.set({"user": {"name": "Alice"}})
+
+        result = config.get(template)
+        assert result["user"]["name"] == "Alice"
+
+    def test_deep_nested_pointer(self):
+        """Test deep nested JSON pointer resolution."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "config": {"$ref": "#/definitions/nested/deep/Config"}
+            },
+            "definitions": {
+                "nested": {
+                    "deep": {
+                        "Config": {
+                            "type": "object",
+                            "properties": {"setting": {"type": "string"}},
+                        }
+                    }
+                }
+            },
+        }
+
+        template = to_template(schema)
+
+        import confuse
+
+        config = confuse.Configuration("test", read=False)
+        config.set({"config": {"setting": "value"}})
+
+        result = config.get(template)
+        assert result["config"]["setting"] == "value"
 
 
 class TestIntegration:
@@ -754,7 +973,8 @@ class TestCombinedLogicalOperatorValidation:
         result = config.get({"value": template})
         assert result["value"] == "hello"
 
-        # Should pass: meets allOf (string >= 3) AND oneOf (ALL CAPS pattern > 10 chars)
+        # Should pass: meets allOf (string >= 3) AND oneOf (ALL CAPS
+        # pattern > 10 chars)
         config.set({"value": "VERYLONGALLCAPS"})
         result = config.get({"value": template})
         assert result["value"] == "VERYLONGALLCAPS"
@@ -960,7 +1180,9 @@ class TestEnumLogicalOperatorValidation:
 class TestSchemaConsistency:
     """Test that templates behave consistently with JSON Schema validation."""
 
-    def _validate_with_jsonschema(self, schema: dict, instance) -> tuple[bool, str]:
+    def _validate_with_jsonschema(
+        self, schema: dict, instance
+    ) -> tuple[bool, str]:
         """Validate Python instance against schema using jsonschema library."""
         import jsonschema
 
@@ -972,7 +1194,9 @@ class TestSchemaConsistency:
         except Exception as e:
             return False, f"Schema error: {str(e)}"
 
-    def _validate_with_confuse(self, schema: dict, instance) -> tuple[bool, str]:
+    def _validate_with_confuse(
+        self, schema: dict, instance
+    ) -> tuple[bool, str]:
         """Validate Python instance against schema using our template."""
         try:
             template = to_template(schema)
@@ -988,10 +1212,12 @@ class TestSchemaConsistency:
     def _test_consistency(self, schema: dict, test_cases: list):
         """Test that both validators agree on all test cases."""
         for instance, expected_valid, description in test_cases:
-            jsonschema_valid, jsonschema_error = self._validate_with_jsonschema(
+            jsonschema_valid, jsonschema_error = (
+                self._validate_with_jsonschema(schema, instance)
+            )
+            confuse_valid, confuse_error = self._validate_with_confuse(
                 schema, instance
             )
-            confuse_valid, confuse_error = self._validate_with_confuse(schema, instance)
 
             # Both should agree on validity
             assert jsonschema_valid == confuse_valid == expected_valid, (
@@ -1139,7 +1365,9 @@ class TestSchemaConsistency:
 
     def test_allof_consistency(self):
         """Test allOf constraint validation consistency."""
-        schema = {"allOf": [{"type": "string"}, {"minLength": 3}, {"maxLength": 10}]}
+        schema = {
+            "allOf": [{"type": "string"}, {"minLength": 3}, {"maxLength": 10}]
+        }
 
         test_cases = [
             ("hello", True, "valid string meeting all constraints"),
@@ -1233,7 +1461,8 @@ class TestSchemaConsistency:
         self._test_consistency(schema, test_cases)
 
     def test_oneof_overlapping_schemas_consistency(self):
-        """Test oneOf with overlapping schemas - should fail when multiple match."""
+        """Test oneOf with overlapping schemas - should fail when multiple
+        match."""
         schema = {
             "oneOf": [
                 {"type": "number"},  # Matches integers and floats
@@ -1570,7 +1799,8 @@ class TestSchemaOneOfValidation:
             config.get({"value": template})
 
     def test_schema_oneof_multiple_match_failure(self):
-        """Test SchemaOneOf validation failure when multiple templates match."""
+        """Test SchemaOneOf validation failure when multiple templates
+        match."""
         # Create overlapping schemas where some values could match both
         schema = {
             "oneOf": [
@@ -1584,7 +1814,9 @@ class TestSchemaOneOfValidation:
 
         # Should fail: integer matches both templates
         config.set({"value": 42})
-        with pytest.raises(confuse.ConfigError, match="multiple templates matched"):
+        with pytest.raises(
+            confuse.ConfigError, match="multiple templates matched"
+        ):
             config.get({"value": template})
 
     def test_schema_oneof_string_constraints(self):
@@ -1673,8 +1905,6 @@ class TestSchemaOneOfValidation:
         config.set({"value": "test"})  # 4 chars, in the gap
         with pytest.raises(confuse.ConfigError):
             config.get({"value": template})
-
-
 
 
 class TestConstWithLogicalOperators:

@@ -32,10 +32,14 @@ class SchemaString(confuse.String):
         value = super().convert(value, view)
 
         if self.min_length is not None and len(value) < self.min_length:
-            self.fail(f"must be at least {self.min_length} characters long", view)
+            self.fail(
+                f"must be at least {self.min_length} characters long", view
+            )
 
         if self.max_length is not None and len(value) > self.max_length:
-            self.fail(f"must be at most {self.max_length} characters long", view)
+            self.fail(
+                f"must be at most {self.max_length} characters long", view
+            )
 
         # Pattern validation is handled by parent class confuse.String
         # We only need to handle min/max length here since pattern is
@@ -85,10 +89,16 @@ class SchemaInteger(confuse.Integer):
         if self.maximum is not None and value > self.maximum:
             self.fail(f"must be at most {self.maximum}", view)
 
-        if self.exclusive_minimum is not None and value <= self.exclusive_minimum:
+        if (
+            self.exclusive_minimum is not None
+            and value <= self.exclusive_minimum
+        ):
             self.fail(f"must be greater than {self.exclusive_minimum}", view)
 
-        if self.exclusive_maximum is not None and value >= self.exclusive_maximum:
+        if (
+            self.exclusive_maximum is not None
+            and value >= self.exclusive_maximum
+        ):
             self.fail(f"must be less than {self.exclusive_maximum}", view)
 
         if self.multiple_of is not None and value % self.multiple_of != 0:
@@ -134,10 +144,16 @@ class SchemaNumber(confuse.Number):
         if self.maximum is not None and value > self.maximum:
             self.fail(f"must be at most {self.maximum}", view)
 
-        if self.exclusive_minimum is not None and value <= self.exclusive_minimum:
+        if (
+            self.exclusive_minimum is not None
+            and value <= self.exclusive_minimum
+        ):
             self.fail(f"must be greater than {self.exclusive_minimum}", view)
 
-        if self.exclusive_maximum is not None and value >= self.exclusive_maximum:
+        if (
+            self.exclusive_maximum is not None
+            and value >= self.exclusive_maximum
+        ):
             self.fail(f"must be less than {self.exclusive_maximum}", view)
 
         if self.multiple_of is not None and value % self.multiple_of != 0:
@@ -237,7 +253,9 @@ class AllOf(confuse.Template):
 
         if errors:
             self.fail(
-                "must match all templates; failures: {0}".format("; ".join(errors)),
+                "must match all templates; failures: {0}".format(
+                    "; ".join(errors)
+                ),
                 view,
             )
 
@@ -275,7 +293,9 @@ class Composite(confuse.Template):
 
         if errors:
             self.fail(
-                "must satisfy all constraints; failures: {0}".format("; ".join(errors)),
+                "must satisfy all constraints; failures: {0}".format(
+                    "; ".join(errors)
+                ),
                 view,
             )
 
@@ -283,7 +303,8 @@ class Composite(confuse.Template):
 
 
 class SchemaOneOf(confuse.Template):
-    """A template that validates exactly one of the provided templates matches."""
+    """A template that validates exactly one of the provided templates
+    matches."""
 
     def __init__(self, templates: List, default=confuse.REQUIRED):
         super().__init__(default)
@@ -323,8 +344,8 @@ class SchemaOneOf(confuse.Template):
         elif len(valid_templates) > 1:
             matched_indices = [str(i) for i, _ in valid_templates]
             self.fail(
-                f"must match exactly one template; multiple templates matched: "
-                f"{', '.join(matched_indices)}",
+                f"must match exactly one template; multiple templates "
+                f"matched: {', '.join(matched_indices)}",
                 view,
             )
 
