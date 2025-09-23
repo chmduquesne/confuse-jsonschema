@@ -237,7 +237,7 @@ def _convert_string_schema(
     pattern = schema.get("pattern")
     default_value = schema.get("default", confuse.REQUIRED)
 
-    # Handle special formats
+    # Handle special confuse formats first
     if string_format in ("uri-reference", "path"):
         return confuse.Filename(
             default_value
@@ -245,8 +245,9 @@ def _convert_string_schema(
             else confuse.REQUIRED
         )
 
-    # If we have constraints, use SchemaString
-    if min_length is not None or max_length is not None or pattern is not None:
+    # If we have constraints (including format), use SchemaString
+    if (min_length is not None or max_length is not None or
+            pattern is not None or string_format is not None):
         return SchemaString(
             min_length, max_length, pattern, string_format, default_value
         )

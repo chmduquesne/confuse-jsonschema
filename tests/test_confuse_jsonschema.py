@@ -310,6 +310,296 @@ class TestStringConstraints:
         template = to_template(schema)
         assert template == str
 
+    def test_string_with_email_format(self):
+        """Test string with email format validation."""
+        schema = {"type": "string", "format": "email"}
+        template = to_template(schema)
+        assert isinstance(template, SchemaString)
+        assert template.string_format == "email"
+
+
+class TestFormatValidation:
+    """Test format validation functionality."""
+
+    def test_valid_email_format(self):
+        """Test that valid emails pass validation."""
+        schema = {"type": "string", "format": "email"}
+        template = to_template(schema)
+
+        # Create a mock config view for testing
+        config = confuse.Configuration('test')
+
+        # Test valid emails
+        valid_emails = [
+            "test@example.com",
+            "user.name@domain.org",
+            "user+tag@example.co.uk",
+            "123@domain.com"
+        ]
+
+        for email in valid_emails:
+            config.set({'value': email})
+            result = config.get({'value': template})['value']
+            assert result == email
+
+    def test_invalid_email_format(self):
+        """Test that invalid emails fail validation."""
+        schema = {"type": "string", "format": "email"}
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+
+        # Test invalid emails
+        invalid_emails = [
+            "invalid",
+            "@example.com",
+            "test@",
+            "test@example",  # no TLD
+            "test @example.com",  # space
+            "",
+            "test@ex ample.com"   # space in domain
+        ]
+
+        for email in invalid_emails:
+            config.set({'value': email})
+            with pytest.raises(confuse.ConfigValueError, match="must be a valid email"):
+                config.get({'value': template})
+
+    def test_email_format_with_other_constraints(self):
+        """Test email format combined with other string constraints."""
+        schema = {
+            "type": "string",
+            "format": "email",
+            "minLength": 5,
+            "maxLength": 50
+        }
+        template = to_template(schema)
+        assert isinstance(template, SchemaString)
+
+        config = confuse.Configuration('test')
+
+        # Valid email within length constraints
+        config.set({'value': 'test@example.com'})
+        result = config.get({'value': template})['value']
+        assert result == 'test@example.com'
+
+        # Valid email format but too short
+        config.set({'value': 'a@b.c'})  # 5 chars, should be valid
+        result = config.get({'value': template})['value']
+        assert result == 'a@b.c'
+
+        # Valid email format but too short (4 chars)
+        config.set({'value': 'a@b.c'[:-1]})  # 4 chars
+        with pytest.raises(confuse.ConfigValueError, match="must be at least 5 characters"):
+            config.get({'value': template})
+
+    def test_date_format_validation(self):
+        """Test date format validation."""
+        schema = {"type": "string", "format": "date"}
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+
+        # Valid dates
+        valid_dates = [
+            "2023-12-25",
+            "2000-01-01",
+            "2024-02-29"  # leap year
+        ]
+
+        for date_val in valid_dates:
+            config.set({'value': date_val})
+            result = config.get({'value': template})['value']
+            assert result == date_val
+
+        # Invalid dates
+        invalid_dates = [
+            "2023-13-01",  # invalid month
+            "2023-12-32",  # invalid day
+            "23-12-25",    # wrong format
+            "2023/12/25",  # wrong separator
+            "not-a-date",
+            "",
+            "2024-02-30"   # invalid date for February
+        ]
+
+        for date_val in invalid_dates:
+            config.set({'value': date_val})
+            with pytest.raises(confuse.ConfigValueError, match="must be a valid date"):
+                config.get({'value': template})
+
+    def test_date_time_format_validation(self):
+        """Test date-time format validation."""
+        schema = {"type": "string", "format": "date-time"}
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+
+        # Valid date-times
+        valid_datetimes = [
+            "2023-12-25T10:30:00Z",
+            "2023-12-25T10:30:00.123Z",
+            "2023-12-25T10:30:00+00:00",
+            "2023-12-25T10:30:00.123+05:30"
+        ]
+
+        for dt in valid_datetimes:
+            config.set({'value': dt})
+            result = config.get({'value': template})['value']
+            assert result == dt
+
+        # Invalid date-times
+        invalid_datetimes = [
+            "2023-12-25 10:30:00",  # missing T
+            "2023-12-25T25:30:00Z", # invalid hour
+            "2023-12-25T10:70:00Z", # invalid minute
+            "not-a-datetime",
+            "2023-12-25T10:30:00",  # missing timezone
+            ""
+        ]
+
+        for dt in invalid_datetimes:
+            config.set({'value': dt})
+            with pytest.raises(confuse.ConfigValueError, match="must be a valid date-time"):
+                config.get({'value': template})
+
+    def test_uri_format_validation(self):
+        """Test URI format validation."""
+        schema = {"type": "string", "format": "uri"}
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+
+        # Valid URIs
+        valid_uris = [
+            "https://example.com",
+            "http://example.com/path",
+            "ftp://files.example.com",
+            "https://example.com:8080/path?query=1#section"
+        ]
+
+        for uri in valid_uris:
+            config.set({'value': uri})
+            result = config.get({'value': template})['value']
+            assert result == uri
+
+        # Invalid URIs
+        invalid_uris = [
+            "not-a-uri",
+            "example.com",  # missing scheme
+            "http://",      # missing netloc
+            "",
+            "://example.com"  # missing scheme
+        ]
+
+        for uri in invalid_uris:
+            config.set({'value': uri})
+            with pytest.raises(confuse.ConfigValueError, match="must be a valid uri"):
+                config.get({'value': template})
+
+    def test_uuid_format_validation(self):
+        """Test UUID format validation."""
+        schema = {"type": "string", "format": "uuid"}
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+
+        # Valid UUIDs
+        valid_uuids = [
+            "123e4567-e89b-12d3-a456-426614174000",
+            "00000000-0000-0000-0000-000000000000",
+            "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
+        ]
+
+        for uuid_val in valid_uuids:
+            config.set({'value': uuid_val})
+            result = config.get({'value': template})['value']
+            assert result == uuid_val
+
+        # Invalid UUIDs
+        invalid_uuids = [
+            "123e4567-e89b-12d3-a456-42661417400",   # too short
+            "123e4567-e89b-12d3-a456-4266141740000", # too long
+            "123e4567-e89b-12d3-a456",               # missing parts
+            "not-a-uuid",
+            "123g4567-e89b-12d3-a456-426614174000",  # invalid character
+            ""
+        ]
+
+        for uuid_val in invalid_uuids:
+            config.set({'value': uuid_val})
+            with pytest.raises(confuse.ConfigValueError, match="must be a valid uuid"):
+                config.get({'value': template})
+
+    def test_ipv4_format_validation(self):
+        """Test IPv4 format validation."""
+        schema = {"type": "string", "format": "ipv4"}
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+
+        # Valid IPv4 addresses
+        valid_ipv4s = [
+            "192.168.1.1",
+            "10.0.0.1",
+            "127.0.0.1",
+            "255.255.255.255",
+            "0.0.0.0"
+        ]
+
+        for ip in valid_ipv4s:
+            config.set({'value': ip})
+            result = config.get({'value': template})['value']
+            assert result == ip
+
+        # Invalid IPv4 addresses
+        invalid_ipv4s = [
+            "256.1.1.1",      # out of range
+            "192.168.1",      # incomplete
+            "192.168.1.1.1",  # too many parts
+            "not-an-ip",
+            "",
+            "192.168.01.1"    # leading zeros
+        ]
+
+        for ip in invalid_ipv4s:
+            config.set({'value': ip})
+            with pytest.raises(confuse.ConfigValueError, match="must be a valid ipv4"):
+                config.get({'value': template})
+
+    def test_ipv6_format_validation(self):
+        """Test IPv6 format validation."""
+        schema = {"type": "string", "format": "ipv6"}
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+
+        # Valid IPv6 addresses
+        valid_ipv6s = [
+            "2001:db8::1",
+            "::1",
+            "::ffff:192.0.2.1",
+            "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+        ]
+
+        for ip in valid_ipv6s:
+            config.set({'value': ip})
+            result = config.get({'value': template})['value']
+            assert result == ip
+
+        # Invalid IPv6 addresses
+        invalid_ipv6s = [
+            "2001:db8::1::1",  # double ::
+            "not-an-ipv6",
+            "",
+            "192.168.1.1"      # IPv4 address
+        ]
+
+        for ip in invalid_ipv6s:
+            config.set({'value': ip})
+            with pytest.raises(confuse.ConfigValueError, match="must be a valid ipv6"):
+                config.get({'value': template})
+
 
 class TestNumericConstraints:
     """Test numeric constraint validation."""

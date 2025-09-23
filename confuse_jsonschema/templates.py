@@ -8,6 +8,7 @@ Confuse templates to add JSON Schema constraint validation.
 import confuse
 import re
 from typing import Optional, List
+from .formats import get_format_validator
 
 
 class SchemaString(confuse.String):
@@ -41,9 +42,15 @@ class SchemaString(confuse.String):
                 f"must be at most {self.max_length} characters long", view
             )
 
+        # Format validation
+        if self.string_format:
+            format_validator = get_format_validator(self.string_format)
+            if format_validator and not format_validator(value):
+                self.fail(f"must be a valid {self.string_format}", view)
+
         # Pattern validation is handled by parent class confuse.String
-        # We only need to handle min/max length here since pattern is
-        # passed to parent
+        # We only need to handle min/max length and format here since
+        # pattern is passed to parent
 
         return value
 
