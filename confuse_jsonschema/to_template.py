@@ -16,6 +16,7 @@ from .templates import (
     AllOf,
     Composite,
     Not,
+    SchemaOneOf,
 )
 
 
@@ -128,14 +129,10 @@ def to_template(schema: Dict[str, Any]) -> Any:
 
         if any(constraint in schema for constraint in string_constraints):
             # Infer string type from string constraints
-            type_template = _convert_string_schema(
-                {**schema, "type": "string"}
-            )
+            type_template = _convert_string_schema({**schema, "type": "string"})
         elif any(constraint in schema for constraint in number_constraints):
             # Infer number type from numeric constraints
-            type_template = _convert_number_schema(
-                {**schema, "type": "number"}
-            )
+            type_template = _convert_number_schema({**schema, "type": "number"})
         elif any(constraint in schema for constraint in array_constraints):
             # Infer array type from array constraints
             type_template = _convert_array_schema({**schema, "type": "array"})
@@ -154,9 +151,7 @@ def to_template(schema: Dict[str, Any]) -> Any:
         return Composite(constraints, schema.get("default", confuse.REQUIRED))
     elif len(constraints) == 1:
         return list(constraints.values())[0]
-    elif (
-        "type_template" in locals()
-    ):  # type_template was set, even if it's None
+    elif "type_template" in locals():  # type_template was set, even if it's None
         return type_template
     else:
         # No constraints and no type - should not happen with valid schemas
@@ -206,9 +201,7 @@ def _convert_array_schema(
 
     # Use SchemaSequence if we have constraints
     if min_items is not None or max_items is not None or unique_items:
-        return SchemaSequence(
-            item_template, min_items, max_items, unique_items
-        )
+        return SchemaSequence(item_template, min_items, max_items, unique_items)
     else:
         return confuse.Sequence(item_template)
 
@@ -226,9 +219,7 @@ def _convert_string_schema(
     # Handle special formats
     if string_format in ("uri-reference", "path"):
         return confuse.Filename(
-            default_value
-            if default_value is not confuse.REQUIRED
-            else confuse.REQUIRED
+            default_value if default_value is not confuse.REQUIRED else confuse.REQUIRED
         )
 
     # If we have constraints, use SchemaString
@@ -268,7 +259,7 @@ def _convert_number_schema(
     )
 
     if schema_type == "integer":
-        if has_constraints:
+        if has_constraints or default_value is confuse.REQUIRED:
             return SchemaInteger(
                 minimum,
                 maximum,
@@ -277,12 +268,10 @@ def _convert_number_schema(
                 multiple_of,
                 default_value,
             )
-        elif default_value is not confuse.REQUIRED:
-            return default_value
         else:
-            return int
+            return default_value
     else:  # number
-        if has_constraints:
+        if has_constraints or default_value is confuse.REQUIRED:
             return SchemaNumber(
                 minimum,
                 maximum,
@@ -291,10 +280,8 @@ def _convert_number_schema(
                 multiple_of,
                 default_value,
             )
-        elif default_value is not confuse.REQUIRED:
-            return default_value
         else:
-            return float
+            return default_value
 
 
 def _convert_boolean_schema(schema: Dict[str, Any]) -> bool:
@@ -343,11 +330,11 @@ def _convert_anyof_schema(schema: Dict[str, Any]) -> confuse.OneOf:
     return confuse.OneOf(templates, schema.get("default", confuse.REQUIRED))
 
 
-def _convert_oneof_schema(schema: Dict[str, Any]) -> confuse.OneOf:
+def _convert_oneof_schema(schema: Dict[str, Any]) -> SchemaOneOf:
     """Convert a oneOf schema - exactly one schema must match."""
     schemas = schema["oneOf"]
     templates = [to_template(s) for s in schemas]
-    return confuse.OneOf(templates, schema.get("default", confuse.REQUIRED))
+    return SchemaOneOf(templates, schema.get("default", confuse.REQUIRED))
 
 
 def _convert_not_schema(schema: Dict[str, Any]) -> Not:

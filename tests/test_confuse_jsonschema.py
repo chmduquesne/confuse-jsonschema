@@ -13,6 +13,7 @@ from confuse_jsonschema.templates import (
     AllOf,
     Composite,
     Not,
+    SchemaOneOf,
 )
 
 
@@ -35,7 +36,7 @@ class TestBasicTypes:
         """Test integer schema conversion."""
         schema = {"type": "integer"}
         template = to_template(schema)
-        assert template == int
+        assert isinstance(template, SchemaInteger)
 
     def test_integer_with_default(self):
         """Test integer schema with default value."""
@@ -47,7 +48,7 @@ class TestBasicTypes:
         """Test number schema conversion."""
         schema = {"type": "number"}
         template = to_template(schema)
-        assert template == float
+        assert isinstance(template, SchemaNumber)
 
     def test_boolean_schema(self):
         """Test boolean schema conversion."""
@@ -279,7 +280,7 @@ class TestAdvancedTypes:
             ]
         }
         template = to_template(schema)
-        assert isinstance(template, confuse.OneOf)
+        assert isinstance(template, SchemaOneOf)
 
     def test_all_of(self):
         schema = {"allOf": [{"type": "string"}, {"minLength": 3}]}
@@ -336,10 +337,10 @@ class TestNumericConstraints:
         assert isinstance(template, SchemaInteger)
 
     def test_number_without_constraints(self):
-        """Test number without constraints returns basic type."""
+        """Test number without constraints returns SchemaNumber."""
         schema = {"type": "number"}
         template = to_template(schema)
-        assert template == float
+        assert isinstance(template, SchemaNumber)
 
 
 class TestArrayConstraints:
@@ -753,10 +754,10 @@ class TestCombinedLogicalOperatorValidation:
         result = config.get({"value": template})
         assert result["value"] == "hello"
 
-        # Should pass: meets allOf (string >= 3) AND oneOf (ALL CAPS pattern)
-        config.set({"value": "HELLO"})
+        # Should pass: meets allOf (string >= 3) AND oneOf (ALL CAPS pattern > 10 chars)
+        config.set({"value": "VERYLONGALLCAPS"})
         result = config.get({"value": template})
-        assert result["value"] == "HELLO"
+        assert result["value"] == "VERYLONGALLCAPS"
 
     def test_allof_oneof_validation_failure(self):
         """Test validation failures with allOf + oneOf."""
@@ -812,10 +813,10 @@ class TestCombinedLogicalOperatorValidation:
         assert isinstance(template, AllOf)
         assert not isinstance(template, Composite)
 
-        # Single oneOf should return OneOf template, not Composite
+        # Single oneOf should return SchemaOneOf template, not Composite
         schema = {"oneOf": [{"type": "string"}, {"type": "integer"}]}
         template = to_template(schema)
-        assert isinstance(template, confuse.OneOf)
+        assert isinstance(template, SchemaOneOf)
         assert not isinstance(template, Composite)
 
 
@@ -959,9 +960,7 @@ class TestEnumLogicalOperatorValidation:
 class TestSchemaConsistency:
     """Test that templates behave consistently with JSON Schema validation."""
 
-    def _validate_with_jsonschema(
-        self, schema: dict, instance
-    ) -> tuple[bool, str]:
+    def _validate_with_jsonschema(self, schema: dict, instance) -> tuple[bool, str]:
         """Validate Python instance against schema using jsonschema library."""
         import jsonschema
 
@@ -973,9 +972,7 @@ class TestSchemaConsistency:
         except Exception as e:
             return False, f"Schema error: {str(e)}"
 
-    def _validate_with_confuse(
-        self, schema: dict, instance
-    ) -> tuple[bool, str]:
+    def _validate_with_confuse(self, schema: dict, instance) -> tuple[bool, str]:
         """Validate Python instance against schema using our template."""
         try:
             template = to_template(schema)
@@ -991,12 +988,10 @@ class TestSchemaConsistency:
     def _test_consistency(self, schema: dict, test_cases: list):
         """Test that both validators agree on all test cases."""
         for instance, expected_valid, description in test_cases:
-            jsonschema_valid, jsonschema_error = (
-                self._validate_with_jsonschema(schema, instance)
-            )
-            confuse_valid, confuse_error = self._validate_with_confuse(
+            jsonschema_valid, jsonschema_error = self._validate_with_jsonschema(
                 schema, instance
             )
+            confuse_valid, confuse_error = self._validate_with_confuse(schema, instance)
 
             # Both should agree on validity
             assert jsonschema_valid == confuse_valid == expected_valid, (
@@ -1144,9 +1139,7 @@ class TestSchemaConsistency:
 
     def test_allof_consistency(self):
         """Test allOf constraint validation consistency."""
-        schema = {
-            "allOf": [{"type": "string"}, {"minLength": 3}, {"maxLength": 10}]
-        }
+        schema = {"allOf": [{"type": "string"}, {"minLength": 3}, {"maxLength": 10}]}
 
         test_cases = [
             ("hello", True, "valid string meeting all constraints"),
@@ -1467,6 +1460,288 @@ class TestNotValidation:
         config.set({"value": -5})
         with pytest.raises(confuse.ConfigError):
             config.get({"value": template})
+
+
+class TestSchemaOneOfTemplate:
+    """Test the SchemaOneOf template class directly."""
+
+    def test_schema_oneof_creation(self):
+        """Test SchemaOneOf template creation."""
+        templates = [str, int]
+        oneof = SchemaOneOf(templates)
+
+        assert oneof.templates == templates
+        assert oneof.default == confuse.REQUIRED
+
+    def test_schema_oneof_with_default(self):
+        """Test SchemaOneOf template with default value."""
+        templates = [str, int]
+        default_value = "test"
+        oneof = SchemaOneOf(templates, default=default_value)
+
+        assert oneof.templates == templates
+        assert oneof.default == default_value
+
+    def test_schema_oneof_repr(self):
+        """Test SchemaOneOf string representation."""
+        templates = [str, int]
+        oneof = SchemaOneOf(templates)
+
+        repr_str = repr(oneof)
+        assert "SchemaOneOf" in repr_str
+        assert "templates=" in repr_str
+
+    def test_schema_oneof_repr_with_default(self):
+        """Test SchemaOneOf string representation with default."""
+        templates = [str]
+        default_value = "test"
+        oneof = SchemaOneOf(templates, default=default_value)
+
+        repr_str = repr(oneof)
+        assert "SchemaOneOf" in repr_str
+        assert "templates=" in repr_str
+        assert "'test'" in repr_str
+
+
+class TestSchemaOneOfValidation:
+    """Test SchemaOneOf validation behavior with actual confuse validation."""
+
+    def test_schema_oneof_exactly_one_match_success(self):
+        """Test SchemaOneOf validation with exactly one match."""
+        schema = {
+            "oneOf": [
+                {"type": "string", "maxLength": 5},
+                {"type": "integer", "minimum": 10},
+            ]
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Should pass: matches only first template (string <= 5)
+        config.set({"value": "hello"})
+        result = config.get({"value": template})
+        assert result["value"] == "hello"
+
+        # Should pass: matches only second template (integer >= 10)
+        config.set({"value": 15})
+        result = config.get({"value": template})
+        assert result["value"] == 15
+
+    def test_schema_oneof_no_match_failure(self):
+        """Test SchemaOneOf validation failure when no templates match."""
+        schema = {
+            "oneOf": [
+                {"type": "string", "maxLength": 5},
+                {"type": "integer", "minimum": 10},
+            ]
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Should fail: matches no template (integer < 10)
+        config.set({"value": 5})
+        with pytest.raises(confuse.ConfigError, match="no templates matched"):
+            config.get({"value": template})
+
+        # Should fail: matches no template (string > 5)
+        config.set({"value": "toolong"})
+        with pytest.raises(confuse.ConfigError, match="no templates matched"):
+            config.get({"value": template})
+
+        # Should fail: matches no template (wrong type)
+        config.set({"value": 3.14})
+        with pytest.raises(confuse.ConfigError, match="no templates matched"):
+            config.get({"value": template})
+
+    def test_schema_oneof_multiple_match_failure(self):
+        """Test SchemaOneOf validation failure when multiple templates match."""
+        # Create overlapping schemas where some values could match both
+        schema = {
+            "oneOf": [
+                {"type": "number"},  # Accepts integers and floats
+                {"type": "integer"},  # Accepts integers only
+            ]
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Should fail: integer matches both templates
+        config.set({"value": 42})
+        with pytest.raises(confuse.ConfigError, match="multiple templates matched"):
+            config.get({"value": template})
+
+    def test_schema_oneof_string_constraints(self):
+        """Test SchemaOneOf with string constraints."""
+        schema = {
+            "oneOf": [
+                {"type": "string", "minLength": 1, "maxLength": 3},
+                {"type": "string", "minLength": 5, "maxLength": 10},
+            ]
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Should pass: matches first template (short string)
+        config.set({"value": "hi"})
+        result = config.get({"value": template})
+        assert result["value"] == "hi"
+
+        # Should pass: matches second template (long string)
+        config.set({"value": "hello"})
+        result = config.get({"value": template})
+        assert result["value"] == "hello"
+
+        # Should fail: matches no template (medium length)
+        config.set({"value": "test"})
+        with pytest.raises(confuse.ConfigError, match="no templates matched"):
+            config.get({"value": template})
+
+    def test_schema_oneof_complex_constraints(self):
+        """Test SchemaOneOf with complex constraint combinations."""
+        # Use clearly non-overlapping schemas
+        schema = {
+            "oneOf": [
+                {"type": "string", "pattern": "^user:"},
+                {"type": "integer", "minimum": 100},
+            ]
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Should pass: matches string pattern template only
+        config.set({"value": "user:john"})
+        result = config.get({"value": template})
+        assert result["value"] == "user:john"
+
+        # Should pass: matches integer template only
+        config.set({"value": 150})
+        result = config.get({"value": template})
+        assert result["value"] == 150
+
+        # Should fail: matches no template (string doesn't match pattern)
+        config.set({"value": "admin:jane"})
+        with pytest.raises(confuse.ConfigError, match="no templates matched"):
+            config.get({"value": template})
+
+        # Should fail: matches no template (integer too small)
+        config.set({"value": 50})
+        with pytest.raises(confuse.ConfigError, match="no templates matched"):
+            config.get({"value": template})
+
+    def test_schema_oneof_with_allof_interaction(self):
+        """Test SchemaOneOf combined with allOf constraints."""
+        schema = {
+            "allOf": [{"type": "string"}],
+            "oneOf": [
+                {"minLength": 1, "maxLength": 3},
+                {"minLength": 5, "maxLength": 10},
+            ],
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration("test", read=False)
+
+        # Should pass: string that matches allOf and exactly one oneOf template
+        config.set({"value": "hi"})  # Matches first oneOf
+        result = config.get({"value": template})
+        assert result["value"] == "hi"
+
+        config.set({"value": "hello"})  # Matches second oneOf
+        result = config.get({"value": template})
+        assert result["value"] == "hello"
+
+        # Should fail: matches allOf but no oneOf templates
+        config.set({"value": "test"})  # 4 chars, in the gap
+        with pytest.raises(confuse.ConfigError):
+            config.get({"value": template})
+
+
+class TestSchemaOneOfConsistency:
+    """Test SchemaOneOf consistency with JSON Schema oneOf behavior."""
+
+    def _validate_with_jsonschema(self, schema: dict, instance) -> tuple[bool, str]:
+        """Validate using jsonschema library."""
+        import jsonschema
+
+        try:
+            jsonschema.validate(instance, schema)
+            return True, ""
+        except jsonschema.ValidationError as e:
+            return False, str(e)
+        except Exception as e:
+            return False, f"Schema error: {str(e)}"
+
+    def _validate_with_confuse(self, schema: dict, instance) -> tuple[bool, str]:
+        """Validate using our SchemaOneOf template."""
+        try:
+            template = to_template(schema)
+            config = confuse.Configuration("test", read=False)
+            config.set({"value": instance})
+            config.get({"value": template})
+            return True, ""
+        except Exception as e:
+            return False, str(e)
+
+    def test_oneof_consistency(self):
+        """Test oneOf validation consistency with JSON Schema."""
+        schema = {
+            "oneOf": [
+                {"type": "string", "maxLength": 5},
+                {"type": "integer", "minimum": 10},
+            ]
+        }
+
+        test_cases = [
+            ("hello", True, "short string matches first schema only"),
+            (15, True, "integer >= 10 matches second schema only"),
+            (5, False, "integer < 10 matches no schemas"),
+            ("toolong", False, "long string matches no schemas"),
+            (3.14, False, "float matches no schemas"),
+        ]
+
+        for instance, expected_valid, description in test_cases:
+            jsonschema_valid, _ = self._validate_with_jsonschema(schema, instance)
+            confuse_valid, _ = self._validate_with_confuse(schema, instance)
+
+            assert jsonschema_valid == confuse_valid == expected_valid, (
+                f"Validation inconsistency for {description}:\n"
+                f"  Instance: {instance}\n"
+                f"  Expected: {expected_valid}\n"
+                f"  JSON Schema: {jsonschema_valid}\n"
+                f"  SchemaOneOf: {confuse_valid}"
+            )
+
+    def test_oneof_overlapping_schemas_consistency(self):
+        """Test oneOf with overlapping schemas - should fail when multiple match."""
+        schema = {
+            "oneOf": [
+                {"type": "number"},  # Matches integers and floats
+                {"type": "integer"},  # Matches integers only
+            ]
+        }
+
+        test_cases = [
+            (42, False, "integer matches both schemas - should fail"),
+            (3.14, True, "float matches only first schema"),
+            ("hello", False, "string matches no schemas"),
+        ]
+
+        for instance, expected_valid, description in test_cases:
+            jsonschema_valid, _ = self._validate_with_jsonschema(schema, instance)
+            confuse_valid, _ = self._validate_with_confuse(schema, instance)
+
+            assert jsonschema_valid == confuse_valid == expected_valid, (
+                f"Validation inconsistency for {description}:\n"
+                f"  Instance: {instance}\n"
+                f"  Expected: {expected_valid}\n"
+                f"  JSON Schema: {jsonschema_valid}\n"
+                f"  SchemaOneOf: {confuse_valid}"
+            )
 
 
 class TestConstWithLogicalOperators:
