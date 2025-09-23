@@ -2695,6 +2695,93 @@ class TestSchemaConsistency:
 
         self._test_consistency(schema, test_cases)
 
+    def test_property_names_consistency(self):
+        """Test propertyNames validation consistency."""
+        schema = {
+            "type": "object",
+            "propertyNames": {
+                "pattern": "^[a-z_][a-z0-9_]*$"
+            }
+        }
+
+        test_cases = [
+            # Valid cases
+            ({}, True, "empty object"),
+            ({"valid_name": "value"}, True, "valid snake_case property"),
+            ({"_private": "value"}, True, "underscore prefix"),
+            ({"name123": "value"}, True, "name with numbers"),
+            (
+                {"valid_name": "value", "another_prop": 42},
+                True, "multiple valid"
+            ),
+            # Invalid cases
+            ({"InvalidName": "value"}, False, "camelCase not allowed"),
+            ({"123invalid": "value"}, False, "starts with number"),
+            ({"valid-name": "value"}, False, "contains dash"),
+            ({"": "value"}, False, "empty property name"),
+            ({"valid$name": "value"}, False, "contains special character"),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_property_names_enum_consistency(self):
+        """Test propertyNames with enum constraint consistency."""
+        schema = {
+            "type": "object",
+            "propertyNames": {
+                "enum": ["name", "value", "description"]
+            }
+        }
+
+        test_cases = [
+            # Valid cases
+            ({}, True, "empty object"),
+            ({"name": "test"}, True, "single valid property"),
+            ({"name": "test", "value": 42}, True, "two valid properties"),
+            ({"name": "test", "value": 42, "description": "desc"},
+             True, "all valid properties"),
+            # Invalid cases
+            ({"invalid": "value"}, False, "property not in enum"),
+            (
+                {"name": "test", "invalid": "value"},
+                False, "one valid, one invalid"
+            ),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_property_names_with_properties_consistency(self):
+        """Test propertyNames with properties schema consistency."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "config_name": {"type": "string"},
+                "config_value": {"type": "integer"}
+            },
+            "additionalProperties": True,
+            "propertyNames": {
+                "pattern": "^config_[a-z]+$"
+            }
+        }
+
+        test_cases = [
+            # Valid cases
+            ({"config_name": "test"}, True, "valid property matching pattern"),
+            ({"config_name": "test", "config_value": 42},
+             True, "both properties valid"),
+            ({"config_name": "test", "config_extra": "additional"},
+             True, "additional property matches pattern"),
+            # Invalid cases
+            (
+                {"invalid_name": "value"},
+                False, "property doesn't match pattern"
+            ),
+            ({"config_name": "test", "invalid_name": "value"},
+             False, "one valid, one invalid property name"),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
 
 class TestNotTemplate:
     """Test the Not template class directly."""
@@ -3484,5 +3571,238 @@ class TestPropertyDependencies:
             confuse.ConfigError,
             match="property 'card_number' requires properties: "
                   "\\['billing_zip'\\]"
+        ):
+            config.get(template)
+
+
+class TestPropertyNames:
+    """Test propertyNames validation feature."""
+
+    def test_property_names_pattern_validation(self):
+        """Test basic propertyNames with pattern validation."""
+        schema = {
+            "type": "object",
+            "propertyNames": {
+                "pattern": "^[a-z_][a-z0-9_]*$"
+            }
+        }
+        template = to_template(schema)
+
+        # Should succeed with valid property names
+        config = confuse.Configuration('test')
+        config.set({
+            "valid_name": "value1",
+            "another_name": "value2",
+            "name_123": "value3"
+        })
+        result = config.get(template)
+        assert result["valid_name"] == "value1"
+
+        # Should fail with invalid property names
+        config.set({
+            "ValidName": "value1",  # Capital letters not allowed
+            "123invalid": "value2",  # Starting with number
+            "valid-name": "value3"  # Dashes not allowed
+        })
+
+        with pytest.raises(
+            confuse.ConfigError, match="property name.*invalid"
+        ):
+            config.get(template)
+
+    def test_property_names_string_format(self):
+        """Test propertyNames with string format validation."""
+        schema = {
+            "type": "object",
+            "propertyNames": {
+                "type": "string",
+                "format": "email"
+            }
+        }
+        template = to_template(schema)
+
+        # Should succeed with valid email property names
+        config = confuse.Configuration('test')
+        config.set({
+            "user@example.com": "User 1",
+            "admin@test.org": "Admin User"
+        })
+        result = config.get(template)
+        assert result["user@example.com"] == "User 1"
+
+        # Should fail with invalid email property names
+        config.set({
+            "invalid-email": "value1",
+            "user@": "value2"
+        })
+
+        with pytest.raises(
+            confuse.ConfigError, match="property name.*invalid"
+        ):
+            config.get(template)
+
+    def test_property_names_length_constraints(self):
+        """Test propertyNames with length constraints."""
+        schema = {
+            "type": "object",
+            "propertyNames": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 10
+            }
+        }
+        template = to_template(schema)
+
+        # Should succeed with valid length property names
+        config = confuse.Configuration('test')
+        config.set({
+            "abc": "value1",
+            "property": "value2",
+            "name123456": "value3"  # exactly 10 chars
+        })
+        result = config.get(template)
+        assert result["abc"] == "value1"
+
+        # Should fail with too short property name
+        config.set({"ab": "value1"})
+        with pytest.raises(
+            confuse.ConfigError, match="property name.*invalid"
+        ):
+            config.get(template)
+
+        # Should fail with too long property name
+        config.set({"verylongname": "value1"})  # 12 chars
+        with pytest.raises(
+            confuse.ConfigError, match="property name.*invalid"
+        ):
+            config.get(template)
+
+    def test_property_names_with_properties(self):
+        """Test propertyNames combined with properties schema."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "config_name": {"type": "string"},
+                "config_value": {"type": "integer"}
+            },
+            "additionalProperties": True,
+            "propertyNames": {
+                "pattern": "^config_[a-z]+$"
+            }
+        }
+        template = to_template(schema)
+
+        # Should succeed when all properties match pattern
+        config = confuse.Configuration('test')
+        config.set({
+            "config_name": "test",
+            "config_value": 42,
+            "config_extra": "additional"
+        })
+        result = config.get(template)
+        assert result["config_name"] == "test"
+        assert result["config_value"] == 42
+
+        # Should fail when property doesn't match pattern
+        config.set({
+            "config_name": "test",
+            "invalid_name": "value"  # Doesn't match pattern
+        })
+
+        with pytest.raises(
+            confuse.ConfigError, match="property name.*invalid"
+        ):
+            config.get(template)
+
+    def test_property_names_with_additional_properties_false(self):
+        """Test propertyNames with additionalProperties: false."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "allowed_prop": {"type": "string"}
+            },
+            "additionalProperties": False,
+            "propertyNames": {
+                "pattern": "^allowed_[a-z]+$"
+            }
+        }
+        template = to_template(schema)
+
+        # Should succeed with valid property that matches pattern
+        config = confuse.Configuration('test')
+        config.set({
+            "allowed_prop": "value"
+        })
+        result = config.get(template)
+        assert result["allowed_prop"] == "value"
+
+        # Should fail with additional property (even if it matches pattern)
+        config.set({
+            "allowed_prop": "value",
+            "allowed_extra": "additional"  # Additional property not allowed
+        })
+
+        with pytest.raises(
+            confuse.ConfigError, match="additional properties not allowed"
+        ):
+            config.get(template)
+
+    def test_property_names_enum_validation(self):
+        """Test propertyNames with enum constraint."""
+        schema = {
+            "type": "object",
+            "propertyNames": {
+                "enum": ["name", "value", "description"]
+            }
+        }
+        template = to_template(schema)
+
+        # Should succeed with valid property names from enum
+        config = confuse.Configuration('test')
+        config.set({
+            "name": "test",
+            "value": 42,
+            "description": "A test object"
+        })
+        result = config.get(template)
+        assert result["name"] == "test"
+
+        # Should fail with property name not in enum
+        config.set({
+            "name": "test",
+            "invalid": "not allowed"
+        })
+
+        with pytest.raises(
+            confuse.ConfigError, match="property name.*invalid"
+        ):
+            config.get(template)
+
+    def test_property_names_without_type_inference(self):
+        """Test schema with only propertyNames infers object type."""
+        schema = {
+            "propertyNames": {
+                "pattern": "^[a-z]+$"
+            }
+        }
+        template = to_template(schema)
+        assert isinstance(template, SchemaObject)
+
+        # Should work correctly
+        config = confuse.Configuration('test')
+        config.set({
+            "valid": "value1",
+            "name": "value2"
+        })
+        result = config.get(template)
+        assert result["valid"] == "value1"
+
+        # Should fail with invalid property name
+        config.set({
+            "Invalid": "value1"  # Capital letter not allowed
+        })
+
+        with pytest.raises(
+            confuse.ConfigError, match="property name.*invalid"
         ):
             config.get(template)

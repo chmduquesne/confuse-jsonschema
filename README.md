@@ -105,6 +105,9 @@ validated_config = config.get(template)
   - When specified property exists, required properties must also be present
 - `dependentSchemas` - schema dependencies via `SchemaObject`
   - When specified property exists, entire object must validate against dependent schema
+- `propertyNames` - property name validation via `SchemaObject`
+  - Validates all object property names against a schema
+  - Supports all string constraints: pattern, format, length, enum
 - `default` - default values
 
 #### Logical Operators
@@ -137,15 +140,7 @@ validated_config = config.get(template)
 
 #### Advanced JSON Schema Features
 
-1. **Property Name Validation**
-   ```json
-   {
-     "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
-   }
-   ```
-   No validation of dictionary key names
-
-2. **Complex Array Validation**
+1. **Complex Array Validation**
    ```json
    {
      "prefixItems": [{"type": "string"}, {"type": "number"}],
@@ -154,13 +149,13 @@ validated_config = config.get(template)
    ```
    Confuse sequences validate all items uniformly
 
-3. **Advanced Format Validation**
+2. **Advanced Format Validation**
    ```json
    {"type": "string", "format": "hostname"}
    ```
    Some specialized JSON Schema formats aren't supported (only common formats like `email`, `date`, `uri`, etc.)
 
-4. **Schema Metadata**
+3. **Schema Metadata**
    - `title`, `description`, `examples` - ignored (no impact on validation)
    - `$id`, `$schema` - ignored
    - `deprecated` - ignored

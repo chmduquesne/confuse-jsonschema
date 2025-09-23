@@ -128,7 +128,8 @@ def to_template(
         "required" in schema or
         "additionalProperties" in schema or
         "dependentRequired" in schema or
-        "dependentSchemas" in schema
+        "dependentSchemas" in schema or
+        "propertyNames" in schema
     ):
         # Handle objects without explicit type (object-related constraints)
         type_template = _convert_object_schema(schema, resolver)
@@ -194,6 +195,7 @@ def _convert_object_schema(
     # Extract dependency information (JSON Schema Draft 2020-12)
     dependent_required = schema.get("dependentRequired", {})
     dependent_schemas = schema.get("dependentSchemas", {})
+    property_names = schema.get("propertyNames")
 
     # Pre-compile dependent schema templates to avoid circular deps
     dependent_templates = {}
@@ -201,6 +203,11 @@ def _convert_object_schema(
         dependent_templates[prop_name] = to_template(
             dependent_schema, resolver
         )
+
+    # Pre-compile propertyNames template if provided
+    property_names_template = None
+    if property_names is not None:
+        property_names_template = to_template(property_names, resolver)
 
     # TODO: Handle patternProperties
     # pattern_properties = schema.get("patternProperties", {})
@@ -229,13 +236,15 @@ def _convert_object_schema(
     if (
         additional_properties is not True or
         dependent_required or
-        dependent_templates
+        dependent_templates or
+        property_names_template is not None
     ):
         return SchemaObject(
             template,
             additional_properties,
             dependent_required,
             dependent_templates,
+            property_names_template,
             resolver,
             schema.get("default", confuse.REQUIRED)
         )

@@ -406,6 +406,7 @@ class SchemaObject(confuse.Template):
         additional_properties=True,
         dependent_required=None,
         dependent_templates=None,
+        property_names_template=None,
         resolver=None,
         default=confuse.REQUIRED,
     ):
@@ -414,6 +415,7 @@ class SchemaObject(confuse.Template):
         self.additional_properties = additional_properties
         self.dependent_required = dependent_required or {}
         self.dependent_templates = dependent_templates or {}  # Pre-compiled
+        self.property_names_template = property_names_template
         self.resolver = resolver
 
     def __repr__(self):
@@ -432,6 +434,10 @@ class SchemaObject(confuse.Template):
         """Validate object with additionalProperties constraints."""
         if not isinstance(value, dict):
             self.fail("must be an object", view)
+
+        # Validate property names if schema is provided
+        if self.property_names_template is not None:
+            self._validate_property_names(value, view)
 
         result = {}
 
@@ -495,6 +501,24 @@ class SchemaObject(confuse.Template):
                         f"properties: {missing_list}",
                         view
                     )
+
+    def _validate_property_names(self, value, view):
+        """Validate property names against the propertyNames schema."""
+        for property_name in value.keys():
+            try:
+                # Create a temporary configuration for property name validation
+                temp_config = confuse.Configuration('temp')
+                temp_config.set({'prop_name': property_name})
+                property_name_view = temp_config['prop_name']
+                template_obj = confuse.as_template(
+                    self.property_names_template
+                )
+                template_obj.convert(property_name, property_name_view)
+            except confuse.ConfigError as e:
+                self.fail(
+                    f"property name '{property_name}' is invalid: {str(e)}",
+                    view
+                )
 
     def _validate_dependent_schemas(self, value, view, result):
         """Validate dependentSchemas constraints."""
