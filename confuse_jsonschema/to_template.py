@@ -128,8 +128,7 @@ def to_template(
         "required" in schema or
         "additionalProperties" in schema or
         "dependentRequired" in schema or
-        "dependentSchemas" in schema or
-        "dependencies" in schema
+        "dependentSchemas" in schema
     ):
         # Handle objects without explicit type (object-related constraints)
         type_template = _convert_object_schema(schema, resolver)
@@ -192,19 +191,9 @@ def _convert_object_schema(
     required_fields = schema.get("required", [])
     additional_properties = schema.get("additionalProperties", True)
 
-    # Extract dependency information
+    # Extract dependency information (JSON Schema Draft 2020-12)
     dependent_required = schema.get("dependentRequired", {})
     dependent_schemas = schema.get("dependentSchemas", {})
-
-    # Handle legacy 'dependencies' keyword (pre-Draft 2019-09)
-    legacy_dependencies = schema.get("dependencies", {})
-    for prop_name, dependency in legacy_dependencies.items():
-        if isinstance(dependency, list):
-            # Array dependency -> dependentRequired
-            dependent_required[prop_name] = dependency
-        elif isinstance(dependency, dict):
-            # Schema dependency -> dependentSchemas
-            dependent_schemas[prop_name] = dependency
 
     # Pre-compile dependent schema templates to avoid circular deps
     dependent_templates = {}

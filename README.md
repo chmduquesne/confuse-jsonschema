@@ -105,9 +105,6 @@ validated_config = config.get(template)
   - When specified property exists, required properties must also be present
 - `dependentSchemas` - schema dependencies via `SchemaObject`
   - When specified property exists, entire object must validate against dependent schema
-- `dependencies` - legacy syntax (pre-Draft 2019-09) fully supported
-  - Array values treated as `dependentRequired`
-  - Object values treated as `dependentSchemas`
 - `default` - default values
 
 #### Logical Operators

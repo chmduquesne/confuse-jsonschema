@@ -2237,6 +2237,7 @@ class TestSchemaConsistency:
         import jsonschema
 
         try:
+            # Always use the latest stable draft (2020-12)
             jsonschema.validate(instance, schema)
             return True, ""
         except jsonschema.ValidationError as e:
@@ -2524,6 +2525,172 @@ class TestSchemaConsistency:
             (42, False, "integer matches both schemas - should fail"),
             (3.14, True, "float matches only first schema"),
             ("hello", False, "string matches no schemas"),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_dependent_required_consistency(self):
+        """Test dependentRequired validation consistency."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "credit_card": {"type": "string"},
+                "billing_address": {"type": "string"},
+                "phone": {"type": "string"},
+                "cvv": {"type": "string"}
+            },
+            "dependentRequired": {
+                "credit_card": ["billing_address", "cvv"]
+            }
+        }
+
+        test_cases = [
+            # Valid cases
+            (
+                {"phone": "555-0123"},
+                True,
+                "no trigger property present"
+            ),
+            (
+                {"credit_card": "1234", "billing_address": "123 Main",
+                 "cvv": "123"},
+                True,
+                "trigger property with all required dependencies"
+            ),
+            (
+                {"credit_card": "1234", "billing_address": "123 Main",
+                 "cvv": "123", "phone": "555-0123"},
+                True,
+                "trigger property with dependencies and extra properties"
+            ),
+            # Invalid cases
+            (
+                {"credit_card": "1234"},
+                False,
+                "trigger property without any dependencies"
+            ),
+            (
+                {"credit_card": "1234", "billing_address": "123 Main"},
+                False,
+                "trigger property missing one dependency"
+            ),
+            (
+                {"credit_card": "1234", "cvv": "123"},
+                False,
+                "trigger property missing different dependency"
+            ),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_dependent_schemas_consistency(self):
+        """Test dependentSchemas validation consistency."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "payment_type": {"type": "string"},
+                "account_number": {"type": "string"},
+                "routing_number": {"type": "string"},
+                "name": {"type": "string"}
+            },
+            "dependentSchemas": {
+                "payment_type": {
+                    "required": ["account_number"],
+                    "properties": {
+                        "routing_number": {"minLength": 9}
+                    }
+                }
+            }
+        }
+
+        test_cases = [
+            # Valid cases
+            (
+                {"name": "John Doe"},
+                True,
+                "no trigger property present"
+            ),
+            (
+                {"payment_type": "bank", "account_number": "123456789"},
+                True,
+                "trigger property with required field"
+            ),
+            (
+                {"payment_type": "bank", "account_number": "123",
+                 "routing_number": "123456789"},
+                True,
+                "trigger property with all constraints satisfied"
+            ),
+            # Invalid cases
+            (
+                {"payment_type": "bank"},
+                False,
+                "trigger property without required field from dependent schema"
+            ),
+            (
+                {"payment_type": "bank", "account_number": "123",
+                 "routing_number": "123"},
+                False,
+                "trigger property with constraint violation"
+            ),
+        ]
+
+        self._test_consistency(schema, test_cases)
+
+    def test_multiple_dependencies_consistency(self):
+        """Test multiple property dependencies consistency."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "credit_card": {"type": "string"},
+                "billing_address": {"type": "string"},
+                "bank_account": {"type": "string"},
+                "routing_number": {"type": "string"},
+                "phone": {"type": "string"}
+            },
+            "dependentRequired": {
+                "credit_card": ["billing_address"],
+                "bank_account": ["routing_number"]
+            }
+        }
+
+        test_cases = [
+            # Valid cases
+            ({"phone": "555-0123"}, True, "no dependencies triggered"),
+            (
+                {"credit_card": "1234", "billing_address": "123 Main"},
+                True,
+                "first dependency satisfied"
+            ),
+            (
+                {"bank_account": "987654", "routing_number": "123456"},
+                True,
+                "second dependency satisfied"
+            ),
+            (
+                {"credit_card": "1234", "billing_address": "123 Main",
+                 "bank_account": "987654", "routing_number": "123456"},
+                True,
+                "both dependencies satisfied"
+            ),
+            # Invalid cases
+            ({"credit_card": "1234"}, False, "first dependency unsatisfied"),
+            (
+                {"bank_account": "987654"},
+                False,
+                "second dependency unsatisfied"
+            ),
+            (
+                {"credit_card": "1234", "bank_account": "987654"},
+                False,
+                "both dependencies unsatisfied"
+            ),
+            (
+                {"credit_card": "1234", "billing_address": "123 Main",
+                 "bank_account": "987654"},
+                False,
+                "first satisfied, second unsatisfied"
+            ),
         ]
 
         self._test_consistency(schema, test_cases)
@@ -3241,61 +3408,6 @@ class TestPropertyDependencies:
         })
         result = config.get(template)
         assert result["name"] == "John Doe"
-
-    def test_legacy_dependencies_array(self):
-        """Test legacy 'dependencies' keyword with array."""
-        schema = {
-            "type": "object",
-            "properties": {
-                "credit_card": {"type": "string"},
-                "billing_address": {"type": "string"}
-            },
-            "dependencies": {
-                "credit_card": ["billing_address"]
-            }
-        }
-        template = to_template(schema)
-
-        config = confuse.Configuration('test')
-        config.set({
-            "credit_card": "1234-5678-9012-3456"
-            # Missing billing_address
-        })
-
-        with pytest.raises(
-            confuse.ConfigError,
-            match="property 'credit_card' requires properties: "
-                  "\\['billing_address'\\]"
-        ):
-            config.get(template)
-
-    def test_legacy_dependencies_schema(self):
-        """Test legacy 'dependencies' keyword with schema."""
-        schema = {
-            "type": "object",
-            "properties": {
-                "account_type": {"type": "string"},
-                "account_number": {"type": "string"}
-            },
-            "dependencies": {
-                "account_type": {
-                    "required": ["account_number"]
-                }
-            }
-        }
-        template = to_template(schema)
-
-        config = confuse.Configuration('test')
-        config.set({
-            "account_type": "checking"
-            # Missing account_number
-        })
-
-        with pytest.raises(
-            confuse.ConfigError,
-            match="dependent schema for property 'account_type'"
-        ):
-            config.get(template)
 
     def test_multiple_property_dependencies(self):
         """Test multiple property dependencies in one schema."""
