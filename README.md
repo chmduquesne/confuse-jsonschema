@@ -97,6 +97,10 @@ validated_config = config.get(template)
 #### Object Features
 - `properties` - property definitions
 - `required` - required properties (others become `confuse.Optional`)
+- `additionalProperties` - full support via `SchemaObject`
+  - `false` - additional properties forbidden
+  - `true` - additional properties allowed (default)
+  - schema object - additional properties validated against schema
 - `default` - default values
 
 #### Logical Operators
@@ -111,21 +115,19 @@ validated_config = config.get(template)
   - Handles nested references recursively
   - Detects and prevents circular references
 
+#### Conditional Logic
+- `if`/`then`/`else` - full conditional validation support via `Conditional` template
+  - Properly evaluates `if` condition against the value
+  - Applies `then` branch when condition matches
+  - Applies `else` branch when condition doesn't match
+  - Follows JSON Schema semantics exactly
+
 ### Partially Supported
 
 #### Object Constraints
-- `additionalProperties` - recognized but not enforced
-  - **Limitation**: Confuse templates use fixed dictionary structures
-  - **Impact**: Additional properties will be accepted without validation
-
 - `patternProperties` - recognized but not enforced
   - **Limitation**: Confuse doesn't support dynamic property validation based on key patterns
   - **Impact**: Pattern-based property validation is ignored
-
-#### Complex Logic
-- `if`/`then`/`else` - basic implementation
-  - **Limitation**: Doesn't evaluate conditions; just uses `then` or `else`
-  - **Impact**: Conditional validation doesn't work properly
 
 ### Not Supported
 
@@ -141,14 +143,13 @@ validated_config = config.get(template)
    ```
    No concept of field interdependencies
 
-2. **Conditional Validation**
+2. **Property Name Validation**
    ```json
    {
-     "if": {"properties": {"type": {"const": "credit_card"}}},
-     "then": {"required": ["number", "cvv"]}
+     "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
    }
    ```
-   Dynamic validation based on other field values isn't supported
+   No validation of dictionary key names
 
 3. **Complex Array Validation**
    ```json
@@ -159,21 +160,13 @@ validated_config = config.get(template)
    ```
    Confuse sequences validate all items uniformly
 
-4. **Property Name Validation**
-   ```json
-   {
-     "propertyNames": {"pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}
-   }
-   ```
-   No validation of dictionary key names
-
-5. **Advanced Format Validation**
+4. **Advanced Format Validation**
    ```json
    {"type": "string", "format": "hostname"}
    ```
    Some specialized JSON Schema formats aren't supported (only common formats like `email`, `date`, `uri`, etc.)
 
-6. **Schema Metadata**
+5. **Schema Metadata**
    - `title`, `description`, `examples` - ignored (no impact on validation)
    - `$id`, `$schema` - ignored
    - `deprecated` - ignored
