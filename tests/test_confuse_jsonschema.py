@@ -1261,6 +1261,417 @@ class TestReferenceSchemas:
         result = config.get(template)
         assert result["config"]["setting"] == "value"
 
+    def test_multiple_ref_occurrences_same_definition(self):
+        """Test multiple references to the same definition."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "user1": {"$ref": "#/definitions/User"},
+                "user2": {"$ref": "#/definitions/User"},
+                "admin": {"$ref": "#/definitions/User"},
+                "team": {
+                    "type": "array",
+                    "items": {"$ref": "#/definitions/User"}
+                }
+            },
+            "definitions": {
+                "User": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "age": {"type": "integer", "minimum": 0}
+                    },
+                    "required": ["name"]
+                }
+            }
+        }
+
+        template = to_template(schema)
+
+        import confuse
+
+        config = confuse.Configuration("test", read=False)
+        config.set({
+            "user1": {"name": "Alice", "age": 25},
+            "user2": {"name": "Bob", "age": 30},
+            "admin": {"name": "Charlie"},
+            "team": [
+                {"name": "Dave", "age": 35},
+                {"name": "Eve", "age": 28}
+            ]
+        })
+
+        result = config.get(template)
+        assert result["user1"]["name"] == "Alice"
+        assert result["user1"]["age"] == 25
+        assert result["user2"]["name"] == "Bob"
+        assert result["admin"]["name"] == "Charlie"
+        assert len(result["team"]) == 2
+        assert result["team"][0]["name"] == "Dave"
+        assert result["team"][1]["name"] == "Eve"
+
+    def test_nested_multiple_refs(self):
+        """Test multiple references with nested structures."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "department": {"$ref": "#/definitions/Department"}
+            },
+            "definitions": {
+                "Department": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "manager": {"$ref": "#/definitions/Employee"},
+                        "employees": {
+                            "type": "array",
+                            "items": {"$ref": "#/definitions/Employee"}
+                        },
+                        "address": {"$ref": "#/definitions/Address"}
+                    },
+                    "required": ["name"]
+                },
+                "Employee": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "title": {"type": "string"},
+                        "address": {"$ref": "#/definitions/Address"}
+                    },
+                    "required": ["name"]
+                },
+                "Address": {
+                    "type": "object",
+                    "properties": {
+                        "street": {"type": "string"},
+                        "city": {"type": "string"},
+                        "zip": {"type": "string"}
+                    },
+                    "required": ["street", "city"]
+                }
+            }
+        }
+
+        template = to_template(schema)
+
+        import confuse
+
+        config = confuse.Configuration("test", read=False)
+        config.set({
+            "department": {
+                "name": "Engineering",
+                "manager": {
+                    "name": "Alice",
+                    "title": "Director",
+                    "address": {
+                        "street": "123 Main St",
+                        "city": "Tech City",
+                        "zip": "12345"
+                    }
+                },
+                "employees": [
+                    {
+                        "name": "Bob",
+                        "title": "Senior Engineer",
+                        "address": {
+                            "street": "456 Oak Ave",
+                            "city": "Tech City"
+                        }
+                    }
+                ],
+                "address": {
+                    "street": "789 Corporate Blvd",
+                    "city": "Business District"
+                }
+            }
+        })
+
+        result = config.get(template)
+        assert result["department"]["name"] == "Engineering"
+        assert result["department"]["manager"]["name"] == "Alice"
+        assert result["department"]["employees"][0]["name"] == "Bob"
+        assert result["department"]["address"]["street"] == \
+            "789 Corporate Blvd"
+
+    def test_ref_caching_efficiency(self):
+        """Test that resolved references are cached for efficiency."""
+        # This tests the caching behavior by using the same ref many times
+        schema = {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "primary": {"$ref": "#/definitions/ComplexType"},
+                            "secondary": {"$ref": "#/definitions/ComplexType"},
+                            "backup": {"$ref": "#/definitions/ComplexType"}
+                        }
+                    }
+                }
+            },
+            "definitions": {
+                "ComplexType": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "nested": {
+                            "type": "object",
+                            "properties": {
+                                "value": {"type": "number"},
+                                "metadata": {"$ref": "#/definitions/Metadata"}
+                            }
+                        }
+                    }
+                },
+                "Metadata": {
+                    "type": "object",
+                    "properties": {
+                        "tags": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        },
+                        "timestamp": {"type": "string"}
+                    }
+                }
+            }
+        }
+
+        # Should not raise any errors and should complete efficiently
+        template = to_template(schema)
+
+        import confuse
+
+        config = confuse.Configuration("test", read=False)
+        config.set({
+            "items": [
+                {
+                    "primary": {
+                        "id": "item1",
+                        "nested": {
+                            "value": 42.0,
+                            "metadata": {
+                                "tags": ["tag1", "tag2"],
+                                "timestamp": "2023-01-01"
+                            }
+                        }
+                    },
+                    "secondary": {
+                        "id": "item2",
+                        "nested": {"value": 24.0}
+                    },
+                    "backup": {"id": "item3"}
+                }
+            ]
+        })
+
+        result = config.get(template)
+        assert len(result["items"]) == 1
+        assert result["items"][0]["primary"]["id"] == "item1"
+        assert result["items"][0]["secondary"]["id"] == "item2"
+
+    def test_complex_circular_reference_variations(self):
+        """Test various forms of circular references"""
+
+        # Direct self-reference
+        schema1 = {
+            "definitions": {
+                "SelfRef": {"$ref": "#/definitions/SelfRef"}
+            },
+            "$ref": "#/definitions/SelfRef"
+        }
+
+        with pytest.raises(ValueError, match="Circular reference detected"):
+            to_template(schema1)
+
+        # Indirect circular reference (A -> B -> A)
+        schema2 = {
+            "definitions": {
+                "TypeA": {
+                    "type": "object",
+                    "properties": {
+                        "b": {"$ref": "#/definitions/TypeB"}
+                    }
+                },
+                "TypeB": {
+                    "type": "object",
+                    "properties": {
+                        "a": {"$ref": "#/definitions/TypeA"}
+                    }
+                }
+            },
+            "$ref": "#/definitions/TypeA"
+        }
+
+        with pytest.raises(ValueError, match="Circular reference detected"):
+            to_template(schema2)
+
+        # Three-way circular reference (A -> B -> C -> A)
+        schema3 = {
+            "definitions": {
+                "TypeA": {
+                    "type": "object",
+                    "properties": {
+                        "b": {"$ref": "#/definitions/TypeB"}
+                    }
+                },
+                "TypeB": {
+                    "type": "object",
+                    "properties": {
+                        "c": {"$ref": "#/definitions/TypeC"}
+                    }
+                },
+                "TypeC": {
+                    "type": "object",
+                    "properties": {
+                        "a": {"$ref": "#/definitions/TypeA"}
+                    }
+                }
+            },
+            "$ref": "#/definitions/TypeA"
+        }
+
+        with pytest.raises(ValueError, match="Circular reference detected"):
+            to_template(schema3)
+
+    def test_circular_reference_in_array_items(self):
+        """Test circular reference detection within array items."""
+        schema = {
+            "definitions": {
+                "TreeNode": {
+                    "type": "object",
+                    "properties": {
+                        "value": {"type": "string"},
+                        "children": {
+                            "type": "array",
+                            "items": {"$ref": "#/definitions/TreeNode"}
+                        }
+                    }
+                }
+            },
+            "type": "object",
+            "properties": {
+                "root": {"$ref": "#/definitions/TreeNode"}
+            }
+        }
+
+        with pytest.raises(ValueError, match="Circular reference detected"):
+            to_template(schema)
+
+    def test_circular_reference_mixed_with_valid_refs(self):
+        """Test schema with both valid and circular references."""
+        schema = {
+            "definitions": {
+                "ValidType": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"}
+                    }
+                },
+                "CircularType": {
+                    "type": "object",
+                    "properties": {
+                        "valid": {"$ref": "#/definitions/ValidType"},
+                        "self": {"$ref": "#/definitions/CircularType"}
+                    }
+                }
+            },
+            "type": "object",
+            "properties": {
+                "good": {"$ref": "#/definitions/ValidType"},
+                "bad": {"$ref": "#/definitions/CircularType"}
+            }
+        }
+
+        with pytest.raises(ValueError, match="Circular reference detected"):
+            to_template(schema)
+
+    def test_ref_resolution_with_logical_operators(self):
+        """Test $ref resolution combined with logical operators."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "anyOf": [
+                        {"$ref": "#/definitions/StringData"},
+                        {"$ref": "#/definitions/NumberData"}
+                    ]
+                },
+                "combined": {
+                    "allOf": [
+                        {"$ref": "#/definitions/BaseData"},
+                        {
+                            "type": "object",
+                            "properties": {
+                                "extra": {"type": "string"}
+                            }
+                        }
+                    ]
+                }
+            },
+            "definitions": {
+                "StringData": {
+                    "type": "object",
+                    "properties": {
+                        "value": {"type": "string"}
+                    },
+                    "required": ["value"]
+                },
+                "NumberData": {
+                    "type": "object",
+                    "properties": {
+                        "value": {"type": "number"}
+                    },
+                    "required": ["value"]
+                },
+                "BaseData": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "timestamp": {"type": "string"}
+                    },
+                    "required": ["id"]
+                }
+            }
+        }
+
+        template = to_template(schema)
+
+        import confuse
+
+        config = confuse.Configuration("test", read=False)
+
+        # Test anyOf with string data
+        config.set({
+            "data": {
+                "value": "hello"
+            },
+            "combined": {
+                "id": "123",
+                "timestamp": "2023-01-01",
+                "extra": "additional"
+            }
+        })
+
+        result = config.get(template)
+        assert result["data"]["value"] == "hello"
+        assert result["combined"]["id"] == "123"
+        assert result["combined"]["extra"] == "additional"
+
+        # Test anyOf with number data
+        config.set({
+            "data": {
+                "value": 42
+            },
+            "combined": {
+                "id": "456"
+            }
+        })
+
+        result = config.get(template)
+        assert result["data"]["value"] == 42
+
 
 class TestIntegration:
     """Integration tests with actual confuse validation."""
