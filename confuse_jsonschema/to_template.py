@@ -123,8 +123,15 @@ def to_template(
         type_template = _convert_boolean_schema(schema)
     elif schema_type == "null":
         type_template = _convert_null_schema(schema)
-    elif schema_type is None and "properties" in schema:
-        # Handle objects without explicit type
+    elif schema_type is None and (
+        "properties" in schema or
+        "required" in schema or
+        "additionalProperties" in schema or
+        "dependentRequired" in schema or
+        "dependentSchemas" in schema or
+        "dependencies" in schema
+    ):
+        # Handle objects without explicit type (object-related constraints)
         type_template = _convert_object_schema(schema, resolver)
     elif schema_type is None:
         # Handle schemas without explicit type - try to infer from constraints
@@ -184,6 +191,28 @@ def _convert_object_schema(
     properties = schema.get("properties", {})
     required_fields = schema.get("required", [])
     additional_properties = schema.get("additionalProperties", True)
+
+    # Extract dependency information
+    dependent_required = schema.get("dependentRequired", {})
+    dependent_schemas = schema.get("dependentSchemas", {})
+
+    # Handle legacy 'dependencies' keyword (pre-Draft 2019-09)
+    legacy_dependencies = schema.get("dependencies", {})
+    for prop_name, dependency in legacy_dependencies.items():
+        if isinstance(dependency, list):
+            # Array dependency -> dependentRequired
+            dependent_required[prop_name] = dependency
+        elif isinstance(dependency, dict):
+            # Schema dependency -> dependentSchemas
+            dependent_schemas[prop_name] = dependency
+
+    # Pre-compile dependent schema templates to avoid circular deps
+    dependent_templates = {}
+    for prop_name, dependent_schema in dependent_schemas.items():
+        dependent_templates[prop_name] = to_template(
+            dependent_schema, resolver
+        )
+
     # TODO: Handle patternProperties
     # pattern_properties = schema.get("patternProperties", {})
 
@@ -201,11 +230,23 @@ def _convert_object_schema(
         else:
             template[prop_name] = prop_template
 
-    # If additionalProperties has constraints, use SchemaObject
-    if additional_properties is not True:
+    # Handle required fields that don't have corresponding properties
+    for required_field in required_fields:
+        if required_field not in template:
+            # Required field without a property def - any type allowed
+            template[required_field] = confuse.Template()
+
+    # Use SchemaObject if we have constraints or dependencies
+    if (
+        additional_properties is not True or
+        dependent_required or
+        dependent_templates
+    ):
         return SchemaObject(
             template,
             additional_properties,
+            dependent_required,
+            dependent_templates,
             resolver,
             schema.get("default", confuse.REQUIRED)
         )

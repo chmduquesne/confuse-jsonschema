@@ -3043,3 +3043,334 @@ class TestConstWithLogicalOperators:
         config.set({"value": 99})
         with pytest.raises(confuse.ConfigError):
             config.get({"value": template})
+
+
+class TestPropertyDependencies:
+    """Test property dependencies validation."""
+
+    def test_dependent_required_success(self):
+        """Test dependentRequired validation success."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "credit_card": {"type": "string"},
+                "billing_address": {"type": "string"},
+                "phone": {"type": "string"}
+            },
+            "dependentRequired": {
+                "credit_card": ["billing_address"]
+            }
+        }
+        template = to_template(schema)
+
+        # Should succeed when dependent property is present
+        config = confuse.Configuration('test')
+        config.set({
+            "credit_card": "1234-5678-9012-3456",
+            "billing_address": "123 Main St",
+            "phone": "555-0123"
+        })
+        result = config.get(template)
+        assert result["credit_card"] == "1234-5678-9012-3456"
+        assert result["billing_address"] == "123 Main St"
+
+    def test_dependent_required_missing_dependency(self):
+        """Test dependentRequired validation failure."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "credit_card": {"type": "string"},
+                "billing_address": {"type": "string"}
+            },
+            "dependentRequired": {
+                "credit_card": ["billing_address"]
+            }
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+        config.set({
+            "credit_card": "1234-5678-9012-3456"
+            # Missing billing_address
+        })
+
+        with pytest.raises(
+            confuse.ConfigError,
+            match="property 'credit_card' requires properties: "
+                  "\\['billing_address'\\]"
+        ):
+            config.get(template)
+
+    def test_dependent_required_without_trigger(self):
+        """Test dependentRequired when trigger property is absent."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "credit_card": {"type": "string"},
+                "billing_address": {"type": "string"},
+                "phone": {"type": "string"}
+            },
+            "dependentRequired": {
+                "credit_card": ["billing_address"]
+            }
+        }
+        template = to_template(schema)
+
+        # Should succeed when trigger property is not present
+        config = confuse.Configuration('test')
+        config.set({
+            "phone": "555-0123"
+            # No credit_card, so billing_address not required
+        })
+        result = config.get(template)
+        assert result["phone"] == "555-0123"
+        assert "credit_card" not in result
+        assert "billing_address" not in result
+
+    def test_dependent_required_multiple_dependencies(self):
+        """Test dependentRequired with multiple required properties."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "credit_card": {"type": "string"},
+                "billing_address": {"type": "string"},
+                "cvv": {"type": "string"},
+                "expiry": {"type": "string"}
+            },
+            "dependentRequired": {
+                "credit_card": ["billing_address", "cvv", "expiry"]
+            }
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+        config.set({
+            "credit_card": "1234-5678-9012-3456",
+            "billing_address": "123 Main St"
+            # Missing cvv and expiry
+        })
+
+        with pytest.raises(
+            confuse.ConfigError,
+            match="property 'credit_card' requires properties: "
+                  "\\['cvv', 'expiry'\\]"
+        ):
+            config.get(template)
+
+    def test_dependent_schemas_success(self):
+        """Test dependentSchemas validation success."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "account_type": {"type": "string"},
+                "account_number": {"type": "string"},
+                "routing_number": {"type": "string"}
+            },
+            "dependentSchemas": {
+                "account_type": {
+                    "required": ["account_number"],
+                    "properties": {
+                        "routing_number": {"minLength": 9}
+                    }
+                }
+            }
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+        config.set({
+            "account_type": "checking",
+            "account_number": "123456789",
+            "routing_number": "987654321"
+        })
+        result = config.get(template)
+        assert result["account_type"] == "checking"
+        assert result["account_number"] == "123456789"
+
+    def test_dependent_schemas_validation_failure(self):
+        """Test dependentSchemas validation failure."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "account_type": {"type": "string"},
+                "account_number": {"type": "string"},
+                "routing_number": {"type": "string"}
+            },
+            "dependentSchemas": {
+                "account_type": {
+                    "required": ["account_number"]
+                }
+            }
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+        config.set({
+            "account_type": "checking"
+            # Missing account_number required by dependent schema
+        })
+
+        with pytest.raises(
+            confuse.ConfigError,
+            match="dependent schema for property 'account_type'"
+        ):
+            config.get(template)
+
+    def test_dependent_schemas_without_trigger(self):
+        """Test dependentSchemas when trigger property is absent."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "account_type": {"type": "string"},
+                "account_number": {"type": "string"},
+                "name": {"type": "string"}
+            },
+            "dependentSchemas": {
+                "account_type": {
+                    "required": ["account_number"]
+                }
+            }
+        }
+        template = to_template(schema)
+
+        # Should succeed when trigger property is not present
+        config = confuse.Configuration('test')
+        config.set({
+            "name": "John Doe"
+            # No account_type, so dependent schema doesn't apply
+        })
+        result = config.get(template)
+        assert result["name"] == "John Doe"
+
+    def test_legacy_dependencies_array(self):
+        """Test legacy 'dependencies' keyword with array."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "credit_card": {"type": "string"},
+                "billing_address": {"type": "string"}
+            },
+            "dependencies": {
+                "credit_card": ["billing_address"]
+            }
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+        config.set({
+            "credit_card": "1234-5678-9012-3456"
+            # Missing billing_address
+        })
+
+        with pytest.raises(
+            confuse.ConfigError,
+            match="property 'credit_card' requires properties: "
+                  "\\['billing_address'\\]"
+        ):
+            config.get(template)
+
+    def test_legacy_dependencies_schema(self):
+        """Test legacy 'dependencies' keyword with schema."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "account_type": {"type": "string"},
+                "account_number": {"type": "string"}
+            },
+            "dependencies": {
+                "account_type": {
+                    "required": ["account_number"]
+                }
+            }
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+        config.set({
+            "account_type": "checking"
+            # Missing account_number
+        })
+
+        with pytest.raises(
+            confuse.ConfigError,
+            match="dependent schema for property 'account_type'"
+        ):
+            config.get(template)
+
+    def test_multiple_property_dependencies(self):
+        """Test multiple property dependencies in one schema."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "payment_method": {"type": "string"},
+                "credit_card": {"type": "string"},
+                "billing_address": {"type": "string"},
+                "bank_account": {"type": "string"},
+                "routing_number": {"type": "string"}
+            },
+            "dependentRequired": {
+                "credit_card": ["billing_address"],
+                "bank_account": ["routing_number"]
+            }
+        }
+        template = to_template(schema)
+
+        # Should succeed with valid dependencies
+        config = confuse.Configuration('test')
+        config.set({
+            "payment_method": "card",
+            "credit_card": "1234-5678-9012-3456",
+            "billing_address": "123 Main St"
+        })
+        result = config.get(template)
+        assert result["credit_card"] == "1234-5678-9012-3456"
+
+        # Should fail with missing dependency
+        config.set({
+            "payment_method": "bank",
+            "bank_account": "987654321"
+            # Missing routing_number
+        })
+
+        with pytest.raises(
+            confuse.ConfigError,
+            match="property 'bank_account' requires properties: "
+                  "\\['routing_number'\\]"
+        ):
+            config.get(template)
+
+    def test_nested_object_dependencies(self):
+        """Test property dependencies in nested objects."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "payment": {
+                    "type": "object",
+                    "properties": {
+                        "type": {"type": "string"},
+                        "card_number": {"type": "string"},
+                        "billing_zip": {"type": "string"}
+                    },
+                    "dependentRequired": {
+                        "card_number": ["billing_zip"]
+                    }
+                }
+            }
+        }
+        template = to_template(schema)
+
+        config = confuse.Configuration('test')
+        config.set({
+            "payment": {
+                "type": "credit_card",
+                "card_number": "1234-5678-9012-3456"
+                # Missing billing_zip
+            }
+        })
+
+        with pytest.raises(
+            confuse.ConfigError,
+            match="property 'card_number' requires properties: "
+                  "\\['billing_zip'\\]"
+        ):
+            config.get(template)

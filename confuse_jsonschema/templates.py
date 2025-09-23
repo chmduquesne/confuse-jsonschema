@@ -404,12 +404,16 @@ class SchemaObject(confuse.Template):
         self,
         properties_template: dict,
         additional_properties=True,
+        dependent_required=None,
+        dependent_templates=None,
         resolver=None,
         default=confuse.REQUIRED,
     ):
         super().__init__(default)
         self.properties_template = properties_template
         self.additional_properties = additional_properties
+        self.dependent_required = dependent_required or {}
+        self.dependent_templates = dependent_templates or {}  # Pre-compiled
         self.resolver = resolver
 
     def __repr__(self):
@@ -470,7 +474,44 @@ class SchemaObject(confuse.Template):
             for key in additional_keys:
                 result[key] = value[key]
 
+        # Validate property dependencies
+        self._validate_dependent_required(value, view)
+        self._validate_dependent_schemas(value, view, result)
+
         return result
+
+    def _validate_dependent_required(self, value, view):
+        """Validate dependentRequired constraints."""
+        for trigger_prop, required_props in self.dependent_required.items():
+            if trigger_prop in value:
+                # If trigger property exists, check required properties exist
+                missing_props = [
+                    prop for prop in required_props if prop not in value
+                ]
+                if missing_props:
+                    missing_list = sorted(missing_props)
+                    self.fail(
+                        f"property '{trigger_prop}' requires "
+                        f"properties: {missing_list}",
+                        view
+                    )
+
+    def _validate_dependent_schemas(self, value, view, result):
+        """Validate dependentSchemas constraints."""
+        for trigger_prop, template in self.dependent_templates.items():
+            if trigger_prop in value:
+                # If trigger property exists, validate the entire object
+                # against the pre-compiled dependent template
+                try:
+                    # Use the view to validate the dependent schema template
+                    # This ensures proper error handling and view context
+                    view.get(template)
+                except confuse.ConfigError as e:
+                    self.fail(
+                        f"dependent schema for property '{trigger_prop}': "
+                        f"{str(e)}",
+                        view
+                    )
 
 
 class Conditional(confuse.Template):
