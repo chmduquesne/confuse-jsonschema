@@ -6,13 +6,13 @@ configuration templates.
 """
 
 from .to_template import to_template
-from importlib.metadata import distribution
+from importlib.metadata import distribution, PackageNotFoundError
 
 
 __version__ = ""
 try:
     __version__ = distribution("confuse_jsonschema").version
-except importlib.metadata.PackageNotFoundError:
+except PackageNotFoundError:
     pass
 
 __author__ = "Christophe-Marie Duquesne"
